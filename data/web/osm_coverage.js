@@ -1,0 +1,2 @@
+// 由 scripts/osm_coverage.py 產生
+window.OSM_COV={"car_km": 2032.7, "tagged_pct": 19.1, "sidewalk_pct": 16.7, "footway_pct_of_network": 28.1, "network_sw_pct": 34.3, "shops": 15789, "shops_in_taipei": 10498, "shop_named_pct": 94.9, "shop_density_max": "中正區 172.9/km²", "shop_density_min": "北投區 5.3/km²", "shop_density_ratio": 32.6, "comm_areas": 446, "comm_km2": 4.91, "shop_note": "最高 中正區 172.9/km²、最低 北投區 5.3/km²，差 32.6 倍"};
