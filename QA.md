@@ -216,6 +216,20 @@
 
 公園四周的新生南路、信義路、和平東路都是 secondary，所以靠近大車道的比例從 23% 變成 88%。長度、樹數、公園比例不受影響。
 
+## 部署：GitHub Pages（2026-11-25）
+
+網址：https://bonniech9203.github.io/taipei-run-map/ ；repository：https://github.com/bonniech9203/taipei-run-map （公開）
+
+| 驗收條件 | 結果 | 證據 |
+|---|---|---|
+| 不上傳金鑰 | Pass | .gitignore 排除 .env、*.key、*secret*、*token*；commit 前用 git grep 掃描暫存檔，沒有找到 token 或密碼 |
+| 不上傳原始資料 | Pass | 排除 data/raw/、data/interim/、data/unused/、*.ods、*.xlsx、*.pbf；也排除舊版軌跡樣本（含 trace_id）與舊版輸出 |
+| 單一檔案 < 100 MB | Pass | 最大的是 network.js 9.4 MB |
+| 不含個人資訊 | Pass | commit 作者用 GitHub 匿名信箱；拿掉腳本中含使用者名稱的絕對路徑 |
+| 網址可以打開（桌機 1440×900） | Pass | 12 個測站、12 個行政區都有渲染；路網從 GitHub 下載 1,171 ms；console 沒有錯誤 |
+| 網址可以打開（手機 375×812，模擬 Android） | Pass | 底部抽屜正常；規劃中正紀念堂 → 國父紀念館，得 5.49 km 對 4.33 km，和本機結果相同 |
+| 在實體手機打開 | 未驗證 | 只用瀏覽器模擬手機尺寸，沒有用真的手機測 |
+
 ## 資料缺漏
 - 中央氣象署臺北站 466920 逐時資料：**缺少**
 - 114 年（2025）辦公日曆：缺少，2025-11、12 月只以週六日當假日

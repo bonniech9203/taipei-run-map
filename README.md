@@ -8,6 +8,8 @@
 
 ## 怎麼開
 
+- **線上版**：https://bonniech9203.github.io/taipei-run-map/ （GitHub Pages，main 分支；每個階段驗收通過後才更新）
+
 - **直接雙擊 `index.html`**：資料用 `<script>` 載入 `data/web/*.js`，不需要伺服器。但需要網路，才能載入 MapLibre（unpkg）、底圖（OpenFreeMap liberty）和字體（Google Fonts）。
   - 這個方式還沒在 file:// 下實測過，見 QA。
 - 或在專案資料夾執行下面的指令，再開 http://localhost:8000：
