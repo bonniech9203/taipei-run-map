@@ -32,18 +32,18 @@
   #map { position:absolute; inset:0; }
   .panel { background:var(--card); border-radius:var(--r); box-shadow:var(--shadow); }
   /* ---- 桌機：左＝主要、右＝次要摺疊、下＝時間軸 ---- */
-  #main { position:absolute; top:16px; left:16px; width:364px; max-height:calc(100% - 224px); overflow:auto; z-index:3; }
-  #side { position:absolute; top:16px; right:58px; width:330px; max-height:calc(100% - 224px); overflow:auto; z-index:3; display:flex; flex-direction:column; gap:10px; background:transparent; box-shadow:none; }
-  #timebar { position:absolute; left:396px; right:16px; bottom:16px; z-index:3; padding:12px 16px 10px; }
-  #head { padding:16px 18px 6px; position:relative; }
-  #head h1 { font-size:19px; margin:0; display:flex; align-items:center; gap:10px; font-weight:700; letter-spacing:.02em; }
+  #main { position:absolute; top:12px; left:12px; width:318px; max-height:calc(100% - 180px); overflow:auto; z-index:3; }
+  #side { position:absolute; top:12px; right:54px; width:286px; max-height:calc(100% - 180px); overflow:auto; z-index:3; display:flex; flex-direction:column; gap:8px; background:transparent; box-shadow:none; }
+  #timebar { position:absolute; left:342px; right:12px; bottom:12px; z-index:3; padding:8px 14px 6px; }
+  #head { padding:12px 16px 4px; position:relative; }
+  #head h1 { font-size:17px; margin:0; display:flex; align-items:center; gap:10px; font-weight:700; letter-spacing:.02em; }
   #head .sub { margin:2px 0 0 38px; }
   .sun { width:26px; height:26px; border-radius:50%; border:6px solid var(--ink); position:relative; flex:none; }
   .sun::after { content:''; position:absolute; right:-6px; top:-6px; width:9px; height:9px; border-radius:50%; background:#5b8fd1; border:2px solid #fff; }
   #fold, #handle { display:none; }
-  .body { padding:8px 18px 18px; }
+  .body { padding:6px 14px 14px; }
   .seg { display:flex; flex-wrap:wrap; gap:6px; }
-  .seg button, .btn { flex:1 1 auto; background:var(--bg); color:var(--ink2); border:0; border-radius:14px; padding:8px 10px; font:500 13px "Noto Sans TC"; cursor:pointer; min-height:38px; transition:background .15s, color .15s, transform .1s; }
+  .seg button, .btn { flex:1 1 auto; background:var(--bg); color:var(--ink2); border:0; border-radius:12px; padding:6px 9px; font:500 12.5px "Noto Sans TC"; cursor:pointer; min-height:34px; transition:background .15s, color .15s, transform .1s; }
   .seg button:hover, .btn:hover { background:#eceef4; }
   .seg button:active, .btn:active { transform:scale(.98); }
   .seg button.on { background:var(--ink); color:#fff; font-weight:600; }
@@ -67,23 +67,24 @@
   .tg.on { background:#fff; box-shadow:inset 0 0 0 1.5px var(--ink); color:var(--ink); font-weight:500; }
   .tg.on .sw2 { background:var(--ink); } .tg.on .sw2::after { left:14px; background:#fff; }
   /* 弧形儀表 */
-  #gauge { display:flex; align-items:center; gap:12px; margin-top:14px; }
+  #gauge { display:flex; align-items:center; gap:10px; margin-top:10px; }
+  #gauge svg { width:92px; height:78px; }
   #gauge svg { flex:none; }
   #gauge .gv { font-family:"Barlow",sans-serif; font-weight:500; }
   #gauge .side { flex:1; }
   .chip { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; padding:3px 10px; border-radius:999px; background:var(--bg); }
   .chip i { width:9px; height:9px; border-radius:50%; display:inline-block; box-shadow:0 0 0 2px rgba(0,0,0,.06); }
-  #advice { border-radius:16px; padding:12px 14px 12px 16px; margin-top:12px; font-size:14px; line-height:1.65; background:var(--bg); position:relative; }
+  #advice { border-radius:14px; padding:9px 12px 9px 14px; margin-top:10px; font-size:13px; line-height:1.6; background:var(--bg); position:relative; }
   #advice::before { content:''; position:absolute; left:0; top:12px; bottom:12px; width:3px; border-radius:3px; background:var(--ink); }
   #advice b { color:var(--ink); font-weight:700; }
-  .kpis { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:12px; }
-  .kpi { background:var(--bg); border-radius:16px; padding:10px 12px; }
-  .kpi .v { font-size:26px; line-height:1.05; display:block; font-weight:500; }
+  .kpis { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:10px; }
+  .kpi { background:var(--bg); border-radius:12px; padding:7px 10px; }
+  .kpi .v { font-size:21px; line-height:1.05; display:block; font-weight:500; }
   .kpi small { display:block; font-size:11px; color:var(--muted); margin-top:4px; }
   .kpi input { width:44px; padding:1px 4px; font:600 12px "Barlow"; border:0; border-radius:6px; background:#fff; }
   /* 摺疊面板 */
   .fold-s { background:#fff; border-radius:18px; box-shadow:var(--shadow); overflow:hidden; }
-  .fold-h { width:100%; display:flex; align-items:center; justify-content:space-between; border:0; background:#fff; padding:13px 16px; font:600 14px "Noto Sans TC"; color:var(--ink); cursor:pointer; gap:8px; }
+  .fold-h { width:100%; display:flex; align-items:center; justify-content:space-between; border:0; background:#fff; padding:9px 14px; font:600 13px "Noto Sans TC"; color:var(--ink); cursor:pointer; gap:8px; }
   .fold-h .en { margin-left:auto; }
   .fold-h .arr { transition:transform .2s; color:var(--muted); font-size:12px; width:22px; height:22px; border-radius:50%; background:var(--bg); display:inline-flex; align-items:center; justify-content:center; }
   .fold-s.open .fold-h .arr { transform:rotate(90deg); background:var(--ink); color:#fff; }
@@ -103,10 +104,10 @@
   svg text { fill:var(--muted); font-size:10.5px; font-family:"Barlow","Noto Sans TC",sans-serif; }
   /* 時間軸 */
   .tb-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-  #play { width:42px; height:42px; border-radius:50%; border:0; background:var(--ink); color:#fff; font-size:15px; cursor:pointer; flex:none; box-shadow:0 4px 12px rgba(18,24,38,.2); }
-  #clock { font:500 30px "Barlow"; min-width:82px; color:var(--ink); letter-spacing:-.01em; line-height:1; }
+  #play { width:34px; height:34px; border-radius:50%; border:0; background:var(--ink); color:#fff; font-size:15px; cursor:pointer; flex:none; box-shadow:0 4px 12px rgba(18,24,38,.2); }
+  #clock { font:500 24px "Barlow"; min-width:66px; color:var(--ink); letter-spacing:-.01em; line-height:1; }
   #tbTitle { font-size:12px; color:var(--muted); flex:1; min-width:160px; }
-  #curve { display:block; width:100%; height:80px; margin-top:6px; cursor:pointer; }
+  #curve { display:block; width:100%; height:56px; margin-top:4px; cursor:pointer; }
   #hour { -webkit-appearance:none; appearance:none; width:100%; height:24px; background:transparent; margin:2px 0 0; cursor:pointer; }
   #hour::-webkit-slider-runnable-track { height:6px; border-radius:3px; background:#e1e5ee; }
   #hour::-moz-range-track { height:6px; border-radius:3px; background:#e1e5ee; }
@@ -120,10 +121,16 @@
   .maplibregl-popup-content { background:#fff; color:var(--ink); font-size:12.5px; border-radius:14px; box-shadow:var(--shadow); padding:10px 13px; }
   .maplibregl-ctrl-group { border-radius:14px !important; box-shadow:var(--shadow) !important; overflow:hidden; }
   #err { display:none; position:absolute; top:16px; left:50%; transform:translateX(-50%); background:#fff1f0; color:#a8071a; padding:8px 14px; border-radius:999px; z-index:5; box-shadow:var(--shadow); }
+  #pickbar { position:absolute; top:12px; left:50%; transform:translateX(-50%); z-index:6; background:var(--ink); color:#fff; border-radius:999px; padding:6px 6px 6px 16px; display:flex; align-items:center; gap:6px; box-shadow:0 8px 24px rgba(18,24,38,.3); font-size:13.5px; white-space:nowrap; }
+  #pickbar button { border:0; border-radius:999px; padding:7px 12px; font:600 12.5px "Noto Sans TC"; cursor:pointer; }
+  #pickCenter { background:var(--lime); color:var(--ink); } #pickCancel { background:#2a3245; color:#fff; }
+  #cross { position:absolute; z-index:4; width:34px; height:34px; margin:-17px 0 0 -17px; pointer-events:none; }
+  #cross::before, #cross::after { content:''; position:absolute; background:var(--ink); border-radius:2px; }
+  #cross::before { left:16px; top:0; width:2px; height:34px; } #cross::after { top:16px; left:0; height:2px; width:34px; }
   [hidden] { display:none !important; }
   /* ---- 手機：全部收進底部抽屜 ---- */
   @media (max-width:700px) {
-    #ui { position:absolute; left:0; right:0; bottom:0; max-height:62%; overflow:auto; z-index:3; background:var(--card); border-radius:24px 24px 0 0; box-shadow:0 -8px 28px rgba(18,24,38,.12); display:flex; flex-direction:column; }
+    #ui { position:absolute; left:0; right:0; bottom:0; max-height:46%; overflow:auto; z-index:3; background:var(--card); border-radius:24px 24px 0 0; box-shadow:0 -8px 28px rgba(18,24,38,.12); display:flex; flex-direction:column; }
     #main, #side, #timebar { position:static; width:auto; max-height:none; overflow:visible; box-shadow:none; border-radius:0; }
     #main { order:1; } #timebar { order:2; padding:8px 14px; border-top:1px solid var(--line); } #side { order:3; padding:10px 12px 16px; background:var(--bg); }
     #head { padding:8px 16px 2px; } #head .sub { display:none; }
@@ -136,18 +143,22 @@
     #ui.folded .kpi { padding:6px 10px; } #ui.folded .kpi .v { font-size:21px; } #ui.folded #curve { height:58px; }
     #clock { font-size:24px; }
     .fold-b { max-height:none; }
+    #pickbar { top:10px; font-size:12.5px; padding-left:12px; }
+    #gauge svg { width:84px; height:72px; }
   }
 </style>
 </head>
 <body>
 <div id="map"></div>
 <div id="err"></div>
+<div id="pickbar" hidden><span id="pickText">點地圖設定起點</span><button id="pickCenter">用畫面中心</button><button id="pickCancel">取消</button></div>
+<div id="cross" hidden></div>
 <div id="ui">
   <!-- ===== 主要 ===== -->
   <div id="main" class="panel">
     <div id="head"><div id="handle"></div><h1><span class="sun"></span>臺北跑者空品地圖</h1><div class="sub en">Taipei Run · Air Quality</div><button id="fold">收合</button></div>
     <div class="body">
-      <div class="seg more" id="mode"><button data-k="draw">✏️ 自己畫路線</button><button data-k="plan">🧭 起點→終點規劃</button></div>
+      <div class="seg" id="mode"><button data-k="draw">✏️ 自己畫路線</button><button data-k="plan">🧭 起點→終點規劃</button></div>
       <div id="drawCtl" class="more">
         <div class="btns"><button class="btn primary" id="drawStart">開始畫線</button><button class="btn" id="drawUndo">復原</button><button class="btn" id="drawClear">清除</button><button class="btn" id="drawEnd">完成</button></div>
       </div>
@@ -296,7 +307,7 @@ document.querySelectorAll('.fold-s').forEach(s => { if (store.get('fold.' + s.da
 const ui = document.getElementById('ui');
 document.getElementById('fold').onclick = () => { const f = ui.classList.toggle('folded'); document.getElementById('fold').textContent = f ? '展開' : '收合'; store.set('sheetFolded', f); };
 document.getElementById('handle').onclick = () => document.getElementById('fold').click();
-if (store.get('sheetFolded', false)) { ui.classList.add('folded'); document.getElementById('fold').textContent = '展開'; }
+if (store.get('sheetFolded', innerWidth <= 700)) { ui.classList.add('folded'); document.getElementById('fold').textContent = '展開'; }   // 手機第一次打開預設收合，讓地圖大一點
 
 // ---- 偏好：主要 4 個開關，進階可調強度與另外 2 項 ----
 const PREFS = {
@@ -320,7 +331,7 @@ map.addControl(new maplibregl.NavigationControl(), 'top-right');
 setTimeout(() => { if (!window.__ready) showErr('底圖載入失敗或太慢（需要網路），請重新整理。'); }, 12000);
 function showErr(t) { const el = document.getElementById('err'); el.textContent = t; el.style.display = 'block'; }
 const isMobile = () => innerWidth <= 700;
-function padL() { if (isMobile()) return { top:30, bottom: Math.min(ui.getBoundingClientRect().height, innerHeight * 0.62) + 20, left:24, right:24 };
+function padL() { if (isMobile()) return { top:30, bottom: Math.min(ui.getBoundingClientRect().height, innerHeight * 0.46) + 20, left:24, right:24 };
   // 依面板實際大小留白，路線不會被擋住
   const tb = document.getElementById('timebar').getBoundingClientRect(), mn = document.getElementById('main').getBoundingClientRect();
   const sd = document.getElementById('side').getBoundingClientRect();   // 收起時標題列仍佔右上角，一律預留
@@ -431,7 +442,7 @@ function curveData() {
   const mr = mapRange(S.pol); return { vals:mr.curve, rg:mr, title:`全市平均 ${POLS[S.pol].label}`, best:null, dur:0 };
 }
 function renderTimebar() {
-  const svg = document.getElementById('curve'), W = svg.clientWidth || 800, H = 78, padX = 10, top = 14, bot = 6;
+  const svg = document.getElementById('curve'), W = svg.clientWidth || 800, H = svg.clientHeight || 56, padX = 10, top = 14, bot = 4;
   const { vals, rg, title, best, dur } = curveData();
   document.getElementById('tbTitle').textContent = `${title}・${DAYS[S.daytype]}・${SEASON_FULL[S.season]}`;
   const ok = vals.filter(v => v !== null), lo = Math.min(...ok), hi = Math.max(...ok), span = (hi - lo) || 1, yMin = Math.max(0, lo - span * 0.35), yMax = hi + span * 0.12;
@@ -604,11 +615,11 @@ function renderAbout() {
 // ===================================================================
 function hint(t) { document.getElementById('hint').textContent = t; }
 function setMode(m) {
-  S.mode = m; DR.active = false; R.pick = null; if (window.__ready) { map.getCanvas().style.cursor = ''; map.doubleClickZoom.enable(); }
+  S.mode = m; DR.active = false; endPick(); if (window.__ready) { map.doubleClickZoom.enable(); }
   document.getElementById('drawCtl').hidden = m !== 'draw'; document.getElementById('planCtl').hidden = m !== 'plan';
   ROUTE = null; SHORT = null; clearMapRoute();
   if (m === 'draw') { hint('按「開始畫線」後在地圖上逐點點擊，雙擊或按「完成」結束。'); if (DR.pts.length >= 2) { drawChanged(true); return; } }
-  else { hint('按「① 設起點」再點地圖，接著「② 設終點」。'); loadNet(); if (NET && R.start !== null && R.end !== null) { showPts(); planRoute(); return; } showPts(); }
+  else { loadNet(); if (NET && R.start !== null && R.end !== null) { showPts(); planRoute(); return; } showPts(); if (R.start === null) startPick('start'); else if (R.end === null) startPick('end'); }
   applyLayers(); render();
 }
 function clearMapRoute() { if (!window.__ready) return; for (const s of ['seg', 'short', 'draw', 'pts', 'worst']) map.getSource(s).setData(EMPTY); }
@@ -658,7 +669,7 @@ function drawChanged(fit) {
   applyLayers(); render(); if (fit && ROUTE) fitRoute();
 }
 function drawStop() { DR.active = false; if (window.__ready) { map.doubleClickZoom.enable(); map.getCanvas().style.cursor = ''; } document.getElementById('drawStart').classList.remove('on'); }
-document.getElementById('drawStart').onclick = () => { R.pick = null; DR.active = true; map.doubleClickZoom.disable(); map.getCanvas().style.cursor = 'crosshair'; document.getElementById('drawStart').classList.add('on'); hint('畫線中：點擊加點，雙擊或按「完成」結束。'); };
+document.getElementById('drawStart').onclick = () => { endPick(); DR.active = true; map.doubleClickZoom.disable(); map.getCanvas().style.cursor = 'crosshair'; document.getElementById('drawStart').classList.add('on'); hint('畫線中：點擊加點，雙擊或按「完成」結束。'); };
 document.getElementById('drawEnd').onclick = () => { drawStop(); hint(DR.pts.length >= 2 ? '已完成。拖動下方時間軸，看路線在不同時間的變化。' : '至少需要 2 個點。'); drawChanged(true); };
 document.getElementById('drawUndo').onclick = () => { DR.pts.pop(); drawChanged(); };
 document.getElementById('drawClear').onclick = () => { DR.pts = []; drawStop(); hint('已清除。按「開始畫線」重畫。'); drawChanged(); };
@@ -689,7 +700,7 @@ function loadNet() {
   const t0 = performance.now();
   netLoading = new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'data/web/network.js'; s.onload = res; s.onerror = rej; document.head.appendChild(s); })
     .then(() => { const t1 = performance.now(); NET = buildNet(); NET.loadMs = Math.round(t1 - t0); NET.buildMs = Math.round(performance.now() - t1);
-      if (S.mode === 'plan' && R.start === null) hint(`路網已載入（${NET.nN.toLocaleString()} 節點，${NET.loadMs + NET.buildMs} ms）。按「① 設起點」再點地圖。`); })
+      if (R.pick) document.getElementById('pickText').textContent = `點地圖設定${R.pick === 'start' ? '起點' : '終點'}`; })
     .catch(() => hint('路網資料載入失敗。'));
   return netLoading;
 }
@@ -748,12 +759,33 @@ function showPts() { if (!window.__ready || !NET) return; const pts = [];
   if (R.start !== null) pts.push({ type:'Feature', properties:{ k:'start' }, geometry:{ type:'Point', coordinates:[NET.lon[R.start], NET.lat[R.start]] } });
   if (R.end !== null) pts.push({ type:'Feature', properties:{ k:'end' }, geometry:{ type:'Point', coordinates:[NET.lon[R.end], NET.lat[R.end]] } });
   map.getSource('pts').setData({ type:'FeatureCollection', features:pts }); }
+// ---- 選點：浮動提示條＋畫面中心準星；手機自動收起抽屜；設好起點自動接著選終點 ----
+function visibleCenter() { const mob = isMobile(), tb = document.getElementById('timebar').getBoundingClientRect(), mn = document.getElementById('main').getBoundingClientRect(), sd = document.getElementById('side').getBoundingClientRect();
+  const top = 56, bottom = mob ? ui.getBoundingClientRect().top : tb.top, left = mob ? 0 : mn.right, right = mob ? innerWidth : sd.left;
+  return { x: (left + right) / 2, y: (top + bottom) / 2 }; }
+function startPick(kind) {
+  loadNet(); DR.active = false; R.pick = kind;
+  if (window.__ready) map.getCanvas().style.cursor = 'crosshair';
+  document.querySelectorAll('#pickStart,#pickEnd').forEach(b => b.classList.toggle('on', b.id === (kind === 'start' ? 'pickStart' : 'pickEnd')));
+  if (isMobile() && !ui.classList.contains('folded')) { ui.classList.add('folded'); document.getElementById('fold').textContent = '展開'; }
+  document.getElementById('pickText').textContent = NET ? `點地圖設定${kind === 'start' ? '起點' : '終點'}` : '路網載入中…可以先點地圖';
+  document.getElementById('pickbar').hidden = false;
+  requestAnimationFrame(() => { if (!R.pick) return; const c = visibleCenter(), cr = document.getElementById('cross'); cr.style.left = c.x + 'px'; cr.style.top = c.y + 'px'; cr.hidden = false; });   // 已經選完就不要再顯示
+  hint(`請在地圖上點${kind === 'start' ? '起點' : '終點'}，或移動地圖讓十字對準後按「用畫面中心」。`);
+}
+function endPick() { R.pick = null; document.getElementById('pickbar').hidden = true; document.getElementById('cross').hidden = true;
+  if (window.__ready) map.getCanvas().style.cursor = ''; document.querySelectorAll('#pickStart,#pickEnd').forEach(b => b.classList.remove('on')); }
+document.getElementById('pickCenter').onclick = () => { if (!R.pick) return; const c = visibleCenter(); setPoint(R.pick, map.unproject([c.x, c.y])); };
+document.getElementById('pickCancel').onclick = () => { endPick(); hint('已取消選點。'); };
 function setPoint(kind, ll) {
-  if (!NET) { hint('路網還在載入，請稍等再點一次。'); return; }
-  const n = nearestNode(ll); R[kind] = n.i; R.pick = null; map.getCanvas().style.cursor = '';
-  document.querySelectorAll('#pickStart,#pickEnd').forEach(b => b.classList.remove('on')); showPts();
-  if (R.start !== null && R.end !== null) planRoute();
-  else hint((n.m > 150 ? `⚠ 點的位置離最近可跑的路 ${Math.round(n.m)} m，已吸附。` : '') + (kind === 'start' ? '起點已設定，請按「② 設終點」再點地圖。' : '終點已設定，請按「① 設起點」。'));
+  if (!NET) {   // 路網還沒載完：記住這次點擊，載完自動設定
+    document.getElementById('pickText').textContent = '路網載入中，載好會自動設定…';
+    (netLoading || loadNet()).then(() => { if (NET) setPoint(kind, ll); }); return; }
+  const n = nearestNode(ll); R[kind] = n.i; endPick(); showPts();
+  const far = n.m > 150 ? `（點的位置離最近可跑的路 ${Math.round(n.m)} m，已吸附）` : '';
+  if (R.start !== null && R.end !== null) { planRoute(); return; }
+  if (kind === 'start') { hint('起點已設定' + far + '。'); startPick('end'); }   // 自動接著選終點
+  else { hint('終點已設定' + far + '。'); startPick('start'); }
 }
 function planRoute() {
   if (!window.__ready) { map.once('load', () => setTimeout(planRoute, 0)); return; }   // 路網比底圖先載完時，等地圖好了再畫
@@ -777,9 +809,9 @@ function markStale(why) {   // 規劃後若時間或條件改變：只顯示按�
   b.hidden = !stale; if (stale) b.textContent = `用 ${pad2(S.hour)}:00 重新規劃` + (why ? `（${why}）` : '');
 }
 document.getElementById('replan').onclick = () => { if (NET && R.start !== null && R.end !== null) planRoute(); };
-document.getElementById('pickStart').onclick = () => { loadNet(); DR.active = false; R.pick = 'start'; map.getCanvas().style.cursor = 'crosshair'; document.getElementById('pickStart').classList.add('on'); hint('請在地圖上點起點。'); };
-document.getElementById('pickEnd').onclick = () => { loadNet(); DR.active = false; R.pick = 'end'; map.getCanvas().style.cursor = 'crosshair'; document.getElementById('pickEnd').classList.add('on'); hint('請在地圖上點終點。'); };
-document.getElementById('clearRoute').onclick = () => { R.start = R.end = null; R.pick = null; ROUTE = SHORT = PLAN = null; document.getElementById('replan').hidden = true; clearMapRoute(); applyLayers(); render(); hint('已清除。'); };
+document.getElementById('pickStart').onclick = () => startPick('start');
+document.getElementById('pickEnd').onclick = () => startPick('end');
+document.getElementById('clearRoute').onclick = () => { R.start = R.end = null; endPick(); ROUTE = SHORT = PLAN = null; document.getElementById('replan').hidden = true; clearMapRoute(); applyLayers(); render(); hint('已清除。'); };
 
 // ===================================================================
 // 彈出視窗
