@@ -256,5 +256,5 @@ curl -L -o data/raw/osm/taiwan-latest.osm.pbf https://download.geofabrik.de/asia
 ```
 
 ```bash
-.venv/bin/python scripts/osm_from_pbf.py data/raw/osm/taiwan-latest.osm.pbf && .venv/bin/python scripts/build_network.py && .venv/bin/python scripts/osm_coverage.py
+.venv/bin/python scripts/osm_from_pbf.py data/raw/osm/taiwan-latest.osm.pbf && .venv/bin/python scripts/build_network.py && .venv/bin/python scripts/pack_network.py && .venv/bin/python scripts/osm_coverage.py
 ```

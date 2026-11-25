@@ -15,6 +15,7 @@
 <script src="data/web/parks.js"></script>
 <script src="data/web/roads.js"></script>
 <script src="data/web/osm_coverage.js"></script>
+<script src="data/web/net_manifest.js"></script>
 <style>
   /* ===== 設計系統：白底＋溫和漸層＋科技感 =====
      漸層只用在有資料變化的地方（空氣品質：藍＝好 → 紅＝差）；螢光綠 #c6ff3d 只用在路線；其他元件用溫和的深墨、灰
@@ -123,7 +124,7 @@
   #err { display:none; position:absolute; top:16px; left:50%; transform:translateX(-50%); background:#fff1f0; color:#a8071a; padding:8px 14px; border-radius:999px; z-index:5; box-shadow:var(--shadow); }
   #pickbar { position:absolute; top:12px; left:50%; transform:translateX(-50%); z-index:6; background:var(--ink); color:#fff; border-radius:999px; padding:6px 6px 6px 16px; display:flex; align-items:center; gap:6px; box-shadow:0 8px 24px rgba(18,24,38,.3); font-size:13.5px; white-space:nowrap; }
   #pickbar button { border:0; border-radius:999px; padding:7px 12px; font:600 12.5px "Noto Sans TC"; cursor:pointer; }
-  #pickCenter { background:var(--lime); color:var(--ink); } #pickCancel { background:#2a3245; color:#fff; }
+  #pickCenter { background:var(--lime); color:var(--ink); } #pickRetry { background:#fff; color:var(--ink); } #pickCancel { background:#2a3245; color:#fff; }
   #cross { position:absolute; z-index:4; width:34px; height:34px; margin:-17px 0 0 -17px; pointer-events:none; }
   #cross::before, #cross::after { content:''; position:absolute; background:var(--ink); border-radius:2px; }
   #cross::before { left:16px; top:0; width:2px; height:34px; } #cross::after { top:16px; left:0; height:2px; width:34px; }
@@ -151,7 +152,7 @@
 <body>
 <div id="map"></div>
 <div id="err"></div>
-<div id="pickbar" hidden><span id="pickText">點地圖設定起點</span><button id="pickCenter">用畫面中心</button><button id="pickCancel">取消</button></div>
+<div id="pickbar" hidden><span id="pickText">點地圖設定起點</span><button id="pickCenter">用畫面中心</button><button id="pickRetry" hidden>重試</button><button id="pickCancel">取消</button></div>
 <div id="cross" hidden></div>
 <div id="ui">
   <!-- ===== 主要 ===== -->
@@ -393,6 +394,8 @@ map.on('load', () => {
   for (const l of ['st-circle', 'traffic-circle', 'dist-fill', 'grid-fill', 'seg-line']) { map.on('mouseenter', l, () => { if (!busy()) map.getCanvas().style.cursor = 'pointer'; }); map.on('mouseleave', l, () => { if (!busy()) map.getCanvas().style.cursor = ''; }); }
   map.fitBounds([[121.457, 24.96], [121.666, 25.21]], { padding:padL(), duration:0 });
   window.__ready = true; applyLayers(); render();
+  // 背景預先下載路網（約 1.2 MB），按規劃時通常已就緒；手機開啟省數據模式時不預載
+  setTimeout(() => { const c = navigator.connection; if (!(c && c.saveData)) loadNet(); }, 2500);
 });
 function applyLayers() { if (!window.__ready) return;
   const vis = b => b ? 'visible' : 'none';
@@ -694,14 +697,46 @@ function importGeoJSON(gj) {
 // 成本＝路段長度 ×（1 ＋ λ×避開分數）÷（1 ＋ λ×偏好分數）；空污用「時間軸目前的小時」，在起終點周圍正規化
 // ===================================================================
 let NET = null, netLoading = null, PLAN = null;
+// 路網：network.json（差值編碼，壓縮後約 1.2 MB），用 fetch 讀並顯示進度；直接開本機檔（file://）時改用 network.js
+let netSlow = false;
+function netState(state, info) {
+  const pt = document.getElementById('pickText'), rt = document.getElementById('pickRetry');
+  if (state === 'loading') { const pct = info; const msg = `路網下載中${pct ? ' ' + pct + '%' : '…'}${netSlow ? '（網路較慢，請稍候）' : ''}`; if (R.pick) pt.textContent = msg + ' 可以先點地圖'; if (S.mode === 'plan') hint(msg); rt.hidden = true; }
+  if (state === 'ready') { if (R.pick) pt.textContent = `點地圖設定${R.pick === 'start' ? '起點' : '終點'}`; rt.hidden = true; }
+  if (state === 'error') { const msg = `路網載入失敗（${info}）。請確認網路後按「重試」`; if (S.mode === 'plan') { pt.textContent = msg; document.getElementById('pickbar').hidden = false; } hint(msg); rt.hidden = false; }
+}
+async function fetchNet(onProg) {
+  const res = await fetch('data/web/network.json', { cache:'default' });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  if (!res.body || !res.body.getReader) return JSON.parse(await res.text());
+  const reader = res.body.getReader(), chunks = []; let got = 0;
+  for (;;) { const { done, value } = await reader.read(); if (done) break; chunks.push(value); got += value.length; onProg(got); }
+  const buf = new Uint8Array(got); let o = 0; for (const c of chunks) { buf.set(c, o); o += c.length; }
+  return JSON.parse(new TextDecoder().decode(buf));
+}
+function decodeNet(d) {   // 還原成 NET_NODES／NET_EDGES／NET_GEOM（欄位同 network.js）
+  const nN = d.nx.length, nodes = new Array(nN); let x = 0, y = 0;
+  for (let i = 0; i < nN; i++) { x += d.nx[i]; y += d.ny[i]; nodes[i] = [x, y]; }
+  const nE = d.du.length, edges = new Array(nE), geom = new Array(nE); let u = 0, gi = 0;
+  for (let k = 0; k < nE; k++) { u += d.du[k]; const v = u + d.dv[k], f = d.fl[k];
+    edges[k] = [u, v, d.len[k], d.tr[k], d.pid[k], d.d1[k], d.d2[k], f & 1, (f >> 1) & 1, d.sh[k], (f >> 2) & 1, d.hw[k]];
+    const c = d.gc[k], g = new Array(c * 2); let qx = nodes[u][0], qy = nodes[u][1];
+    for (let j = 0; j < c; j++, gi++) { qx += d.gx[gi]; qy += d.gy[gi]; g[2 * j] = qx; g[2 * j + 1] = qy; }
+    geom[k] = g; }
+  window.NET_META = d.meta; window.NET_PARKS = d.parks; window.NET_NODES = nodes; window.NET_EDGES = edges; window.NET_GEOM = geom;
+}
+function loadScript(src) { return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('無法讀取 ' + src)); document.head.appendChild(s); }); }
 function loadNet() {
-  if (NET || netLoading) return netLoading;
-  hint('正在載入臺北市步行路網（約 9 MB）…');
-  const t0 = performance.now();
-  netLoading = new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'data/web/network.js'; s.onload = res; s.onerror = rej; document.head.appendChild(s); })
-    .then(() => { const t1 = performance.now(); NET = buildNet(); NET.loadMs = Math.round(t1 - t0); NET.buildMs = Math.round(performance.now() - t1);
-      if (R.pick) document.getElementById('pickText').textContent = `點地圖設定${R.pick === 'start' ? '起點' : '終點'}`; })
-    .catch(() => hint('路網資料載入失敗。'));
+  if (NET) return Promise.resolve();
+  if (netLoading) return netLoading;
+  const t0 = performance.now(), total = window.NET_BYTES || 0; netSlow = false; netState('loading', 0);
+  const slowT = setTimeout(() => { netSlow = true; netState('loading', null); }, 15000);
+  let lastPct = -1;
+  const job = location.protocol === 'file:' ? loadScript('data/web/network.js')
+    : fetchNet(got => { const pct = total ? Math.min(99, Math.floor(got / total * 100)) : 0; if (pct !== lastPct) { lastPct = pct; netState('loading', pct); } }).then(decodeNet);
+  netLoading = job.then(() => { const t1 = performance.now(); NET = buildNet(); NET.loadMs = Math.round(t1 - t0); NET.buildMs = Math.round(performance.now() - t1);
+      clearTimeout(slowT); netState('ready'); if (S.mode === 'plan' && !R.pick && R.start === null) hint(`路網已載入（${NET.loadMs + NET.buildMs} ms）。`); })
+    .catch(err => { clearTimeout(slowT); netLoading = null; netState('error', err && err.message ? err.message : '未知錯誤'); });
   return netLoading;
 }
 function buildNet() {
@@ -768,7 +803,7 @@ function startPick(kind) {
   if (window.__ready) map.getCanvas().style.cursor = 'crosshair';
   document.querySelectorAll('#pickStart,#pickEnd').forEach(b => b.classList.toggle('on', b.id === (kind === 'start' ? 'pickStart' : 'pickEnd')));
   if (isMobile() && !ui.classList.contains('folded')) { ui.classList.add('folded'); document.getElementById('fold').textContent = '展開'; }
-  document.getElementById('pickText').textContent = NET ? `點地圖設定${kind === 'start' ? '起點' : '終點'}` : '路網載入中…可以先點地圖';
+  document.getElementById('pickText').textContent = NET ? `點地圖設定${kind === 'start' ? '起點' : '終點'}` : '路網下載中… 可以先點地圖';
   document.getElementById('pickbar').hidden = false;
   requestAnimationFrame(() => { if (!R.pick) return; const c = visibleCenter(), cr = document.getElementById('cross'); cr.style.left = c.x + 'px'; cr.style.top = c.y + 'px'; cr.hidden = false; });   // 已經選完就不要再顯示
   hint(`請在地圖上點${kind === 'start' ? '起點' : '終點'}，或移動地圖讓十字對準後按「用畫面中心」。`);
@@ -777,10 +812,11 @@ function endPick() { R.pick = null; document.getElementById('pickbar').hidden = 
   if (window.__ready) map.getCanvas().style.cursor = ''; document.querySelectorAll('#pickStart,#pickEnd').forEach(b => b.classList.remove('on')); }
 document.getElementById('pickCenter').onclick = () => { if (!R.pick) return; const c = visibleCenter(); setPoint(R.pick, map.unproject([c.x, c.y])); };
 document.getElementById('pickCancel').onclick = () => { endPick(); hint('已取消選點。'); };
+document.getElementById('pickRetry').onclick = () => { loadNet(); };
 function setPoint(kind, ll) {
   if (!NET) {   // 路網還沒載完：記住這次點擊，載完自動設定
-    document.getElementById('pickText').textContent = '路網載入中，載好會自動設定…';
-    (netLoading || loadNet()).then(() => { if (NET) setPoint(kind, ll); }); return; }
+    document.getElementById('pickText').textContent = '已記住你點的位置，路網載好會自動設定…';
+    loadNet().then(() => { if (NET) setPoint(kind, ll); }); return; }
   const n = nearestNode(ll); R[kind] = n.i; endPick(); showPts();
   const far = n.m > 150 ? `（點的位置離最近可跑的路 ${Math.round(n.m)} m，已吸附）` : '';
   if (R.start !== null && R.end !== null) { planRoute(); return; }
