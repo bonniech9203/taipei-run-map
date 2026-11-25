@@ -6,7 +6,7 @@
 <title>臺北跑者空品地圖</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;500;600;700&family=Barlow+Semi+Condensed:wght@500;600&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vendor/maplibre-gl-4.7.1.css">
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="data/web/aq_data.js"></script>
@@ -16,262 +16,329 @@
 <script src="data/web/roads.js"></script>
 <script src="data/web/osm_coverage.js"></script>
 <style>
+  /* ===== 設計系統：白底＋溫和漸層＋科技感 =====
+     漸層只用在有資料變化的地方（空氣品質：藍＝好 → 紅＝差）；螢光綠 #c6ff3d 只用在路線；其他元件用溫和的深墨、灰
+     字體：中文 Noto Sans TC；數字與英文標籤 Barlow／Barlow Semi Condensed */
   :root {
-    --coral:#ff6b4a; --coral-d:#e8502f; --coral-s:#fff0eb; --green:#22a861; --green-s:#e7f7ee; --sky:#2f9bf0; --sky-s:#e8f4fe;
-    --ink:#1f2933; --muted:#6b7280; --line:#e7e9ee; --bg:#f6f7f9; --card:#ffffff; --shadow:0 6px 24px rgba(31,41,51,.10), 0 1px 3px rgba(31,41,51,.06);
+    --ink:#121826; --ink2:#3a4256; --muted:#8a93a6; --line:#eceef3; --bg:#f5f6fa; --card:#ffffff;
+    --lime:#c6ff3d;   /* 只給路線 */
+    --shadow:0 10px 30px rgba(18,24,38,.08), 0 2px 6px rgba(18,24,38,.05);
+    --r:22px;
   }
   * { box-sizing:border-box; }
-  html,body { margin:0; height:100%; background:var(--bg); color:var(--ink); font:14px/1.55 "Noto Sans TC",-apple-system,"PingFang TC","Microsoft JhengHei",sans-serif; }
-  .num { font-family:"Barlow","Noto Sans TC",sans-serif; font-weight:700; font-variant-numeric:tabular-nums; letter-spacing:.2px; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--ink); font:14px/1.55 "Noto Sans TC",-apple-system,"PingFang TC","Microsoft JhengHei",sans-serif; overflow:hidden; -webkit-font-smoothing:antialiased; }
+  .num { font-family:"Barlow","Noto Sans TC",sans-serif; font-weight:600; font-variant-numeric:tabular-nums; letter-spacing:-.01em; }
+  .en { font-family:"Barlow Semi Condensed","Barlow",sans-serif; font-weight:600; letter-spacing:.14em; text-transform:uppercase; font-size:10.5px; color:var(--muted); }
   #map { position:absolute; inset:0; }
-  #panel { position:absolute; top:14px; left:14px; width:384px; max-height:calc(100% - 28px); display:flex; flex-direction:column; background:var(--card); border-radius:18px; box-shadow:var(--shadow); z-index:2; overflow:hidden; }
-  #head { padding:14px 16px 10px; background:linear-gradient(135deg,#ffe2d6 0%,#fff4e6 55%,#e9f6ff 100%); position:relative; }
-  #head h1 { font-size:18px; margin:0; display:flex; align-items:center; gap:8px; }
-  #head h1 .sun { width:26px; height:26px; border-radius:50%; background:radial-gradient(circle at 50% 60%,#ffb199,#ff6b4a); box-shadow:0 0 0 4px rgba(255,107,74,.15); flex:none; }
-  #head .q { color:#5b4a43; font-size:12.5px; margin:4px 0 0; }
-  #fold { position:absolute; top:12px; right:12px; border:0; background:rgba(255,255,255,.85); color:var(--ink); border-radius:999px; padding:6px 12px; font:600 12.5px "Noto Sans TC"; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,.1); }
-  #handle { display:none; }
-  #body { overflow:auto; padding:10px 14px 14px; }
-  .tabs { display:flex; gap:6px; background:var(--bg); padding:4px; border-radius:12px; margin:4px 0 10px; }
-  .tabs button { flex:1; border:0; background:transparent; padding:8px 4px; border-radius:9px; font:600 13.5px "Noto Sans TC"; color:var(--muted); cursor:pointer; }
-  .tabs button.on { background:#fff; color:var(--coral-d); box-shadow:0 1px 4px rgba(0,0,0,.08); }
-  .card { background:#fff; border:1px solid var(--line); border-radius:14px; padding:12px; margin:10px 0; }
-  .card h3 { font-size:14px; margin:0 0 8px; display:flex; align-items:center; gap:6px; }
-  .row { margin:8px 0; }
-  .lab { font-size:12px; color:var(--muted); margin-bottom:5px; font-weight:500; }
-  .seg { display:flex; flex-wrap:wrap; gap:5px; }
-  .seg button, .btn { flex:1 1 auto; background:#fff; color:var(--ink); border:1.5px solid var(--line); border-radius:10px; padding:7px 9px; font:500 13px "Noto Sans TC"; cursor:pointer; min-height:36px; transition:all .12s; }
-  .seg button:hover, .btn:hover { border-color:#ffb8a6; }
-  .seg button.on { background:var(--coral); color:#fff; border-color:var(--coral); font-weight:700; box-shadow:0 2px 8px rgba(255,107,74,.35); }
-  .btn.primary { background:var(--coral); color:#fff; border-color:var(--coral); font-weight:700; }
-  .btn.ghost { background:var(--bg); }
-  .btn.on { background:var(--coral-s); border-color:var(--coral); color:var(--coral-d); font-weight:700; }
-  .btns { display:flex; gap:6px; flex-wrap:wrap; }
-  select, input[type=number] { background:#fff; color:var(--ink); border:1.5px solid var(--line); border-radius:10px; padding:6px 8px; font:500 13px "Noto Sans TC"; }
-  select { width:100%; }
-  input[type=range] { accent-color:var(--coral); }
-  .switch { display:inline-flex; align-items:center; gap:6px; font-size:13px; cursor:pointer; margin-right:12px; }
-  .switch input { width:18px; height:18px; accent-color:var(--coral); }
-  .legend .item { display:flex; align-items:center; gap:7px; font-size:12px; margin:2px 0; }
-  .sw { width:24px; height:13px; border-radius:4px; display:inline-block; border:1px solid rgba(0,0,0,.08); flex:none; }
+  .panel { background:var(--card); border-radius:var(--r); box-shadow:var(--shadow); }
+  /* ---- 桌機：左＝主要、右＝次要摺疊、下＝時間軸 ---- */
+  #main { position:absolute; top:16px; left:16px; width:364px; max-height:calc(100% - 224px); overflow:auto; z-index:3; }
+  #side { position:absolute; top:16px; right:58px; width:330px; max-height:calc(100% - 224px); overflow:auto; z-index:3; display:flex; flex-direction:column; gap:10px; background:transparent; box-shadow:none; }
+  #timebar { position:absolute; left:396px; right:16px; bottom:16px; z-index:3; padding:12px 16px 10px; }
+  #head { padding:16px 18px 6px; position:relative; }
+  #head h1 { font-size:19px; margin:0; display:flex; align-items:center; gap:10px; font-weight:700; letter-spacing:.02em; }
+  #head .sub { margin:2px 0 0 38px; }
+  .sun { width:26px; height:26px; border-radius:50%; border:6px solid var(--ink); position:relative; flex:none; }
+  .sun::after { content:''; position:absolute; right:-6px; top:-6px; width:9px; height:9px; border-radius:50%; background:#5b8fd1; border:2px solid #fff; }
+  #fold, #handle { display:none; }
+  .body { padding:8px 18px 18px; }
+  .seg { display:flex; flex-wrap:wrap; gap:6px; }
+  .seg button, .btn { flex:1 1 auto; background:var(--bg); color:var(--ink2); border:0; border-radius:14px; padding:8px 10px; font:500 13px "Noto Sans TC"; cursor:pointer; min-height:38px; transition:background .15s, color .15s, transform .1s; }
+  .seg button:hover, .btn:hover { background:#eceef4; }
+  .seg button:active, .btn:active { transform:scale(.98); }
+  .seg button.on { background:var(--ink); color:#fff; font-weight:600; }
+  .seg.small button { min-height:30px; padding:4px 11px; font-size:12.5px; flex:0 0 auto; border-radius:999px; }
+  #mode { background:var(--bg); padding:4px; border-radius:16px; gap:4px; }
+  #mode button { background:transparent; }
+  #mode button.on { background:#fff; color:var(--ink); box-shadow:0 2px 8px rgba(18,24,38,.1); }
+  .btn.primary { background:var(--ink); color:#fff; font-weight:600; }
+  .btn.primary:hover { background:#2a3245; }
+  .btn.on { background:var(--ink); color:#fff; font-weight:600; box-shadow:0 0 0 3px #d5dae5; }
+  .btn.ghost { background:transparent; border:1.5px solid var(--line); }
+  .btn.go { background:var(--ink); color:#fff; font-weight:600; width:100%; margin-top:10px; }
+  .btns { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
+  .lab { font-size:12px; color:var(--muted); margin:12px 0 6px; font-weight:500; display:flex; align-items:baseline; gap:8px; }
   .note { font-size:11.5px; color:var(--muted); margin-top:6px; }
-  .warn { font-size:12px; color:#9a4a00; background:#fff6e5; border-radius:10px; padding:7px 9px; margin-top:8px; }
-  .big { font-size:30px; line-height:1; }
-  .stat { display:flex; gap:14px; align-items:flex-end; flex-wrap:wrap; }
-  .stat > div { display:flex; flex-direction:column; }
-  .stat small { font-size:11.5px; color:var(--muted); }
-  .tag { display:inline-block; font-size:11px; padding:2px 7px; border-radius:999px; background:var(--bg); color:var(--muted); margin-left:6px; font-weight:500; }
-  .tag.est { background:#fff1e0; color:#a35200; }
-  .tag.ok { background:var(--green-s); color:#167a45; }
-  .best { color:var(--green); font-weight:700; } .worst { color:#e5484d; font-weight:700; }
-  svg text { fill:var(--muted); font-size:10.5px; font-family:"Barlow","Noto Sans TC",sans-serif; }
+  .warn { font-size:12px; color:#8a4b00; background:#fff6e8; border-radius:12px; padding:8px 10px; margin-top:10px; }
+  .toggles { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  .tg { display:flex; align-items:center; gap:8px; background:var(--bg); border-radius:14px; padding:8px 10px; cursor:pointer; font-size:12.5px; user-select:none; color:var(--ink2); }
+  .tg .sw2 { width:30px; height:18px; border-radius:9px; background:#d9dce4; position:relative; flex:none; transition:.15s; }
+  .tg .sw2::after { content:''; position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:50%; background:#fff; transition:.15s; box-shadow:0 1px 2px rgba(0,0,0,.2); }
+  .tg.on { background:#fff; box-shadow:inset 0 0 0 1.5px var(--ink); color:var(--ink); font-weight:500; }
+  .tg.on .sw2 { background:var(--ink); } .tg.on .sw2::after { left:14px; background:#fff; }
+  /* 弧形儀表 */
+  #gauge { display:flex; align-items:center; gap:12px; margin-top:14px; }
+  #gauge svg { flex:none; }
+  #gauge .gv { font-family:"Barlow",sans-serif; font-weight:500; }
+  #gauge .side { flex:1; }
+  .chip { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; padding:3px 10px; border-radius:999px; background:var(--bg); }
+  .chip i { width:9px; height:9px; border-radius:50%; display:inline-block; box-shadow:0 0 0 2px rgba(0,0,0,.06); }
+  #advice { border-radius:16px; padding:12px 14px 12px 16px; margin-top:12px; font-size:14px; line-height:1.65; background:var(--bg); position:relative; }
+  #advice::before { content:''; position:absolute; left:0; top:12px; bottom:12px; width:3px; border-radius:3px; background:var(--ink); }
+  #advice b { color:var(--ink); font-weight:700; }
+  .kpis { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:12px; }
+  .kpi { background:var(--bg); border-radius:16px; padding:10px 12px; }
+  .kpi .v { font-size:26px; line-height:1.05; display:block; font-weight:500; }
+  .kpi small { display:block; font-size:11px; color:var(--muted); margin-top:4px; }
+  .kpi input { width:44px; padding:1px 4px; font:600 12px "Barlow"; border:0; border-radius:6px; background:#fff; }
+  /* 摺疊面板 */
+  .fold-s { background:#fff; border-radius:18px; box-shadow:var(--shadow); overflow:hidden; }
+  .fold-h { width:100%; display:flex; align-items:center; justify-content:space-between; border:0; background:#fff; padding:13px 16px; font:600 14px "Noto Sans TC"; color:var(--ink); cursor:pointer; gap:8px; }
+  .fold-h .en { margin-left:auto; }
+  .fold-h .arr { transition:transform .2s; color:var(--muted); font-size:12px; width:22px; height:22px; border-radius:50%; background:var(--bg); display:inline-flex; align-items:center; justify-content:center; }
+  .fold-s.open .fold-h .arr { transform:rotate(90deg); background:var(--ink); color:#fff; }
+  .fold-b { display:none; padding:0 16px 16px; max-height:56vh; overflow:auto; }
+  .fold-s.open .fold-b { display:block; }
   table.t { border-collapse:collapse; font-size:12.5px; width:100%; margin-top:6px; }
-  table.t td, table.t th { border-bottom:1px solid var(--line); padding:5px 6px; text-align:right; }
+  table.t td, table.t th { border-bottom:1px solid var(--line); padding:6px 6px; text-align:right; }
   table.t th:first-child { text-align:left; font-weight:500; color:var(--muted); }
   table.t td.num { font-size:14px; }
-  .pref { display:grid; grid-template-columns:24px 1fr 92px 36px; align-items:center; gap:6px; margin:6px 0; font-size:13px; }
-  .pref .ico { font-size:16px; text-align:center; }
-  .pref .lv { font-size:12px; color:var(--coral-d); font-weight:700; text-align:right; }
-  .summary { background:linear-gradient(135deg,#fff0eb,#effaf4); border-radius:12px; padding:10px 12px; font-size:13.5px; margin-top:8px; }
-  .maplibregl-popup-content { background:#fff; color:var(--ink); font-size:12.5px; border-radius:12px; box-shadow:var(--shadow); padding:10px 12px; }
-  .maplibregl-popup-close-button { font-size:16px; padding:2px 6px; }
-  #err { display:none; position:absolute; top:14px; right:60px; background:#fff1f0; color:#a8071a; padding:8px 12px; border-radius:10px; z-index:3; box-shadow:var(--shadow); }
-  #loading { display:none; }
+  .switch { display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer; margin:6px 0; }
+  .switch input { width:18px; height:18px; accent-color:var(--ink); }
+  select, input[type=number] { background:var(--bg); color:var(--ink); border:0; border-radius:10px; padding:6px 8px; font:500 13px "Noto Sans TC"; }
+  input[type=range] { accent-color:var(--ink); }
+  .pref { display:grid; grid-template-columns:22px 1fr 22px 90px 34px; align-items:center; gap:6px; margin:6px 0; font-size:13px; }
+  .tag { display:inline-block; font-size:11px; padding:2px 8px; border-radius:999px; background:var(--bg); color:var(--muted); margin-left:6px; font-weight:500; }
+  .tag.est { background:#fff1e0; color:#a35200; }
+  svg text { fill:var(--muted); font-size:10.5px; font-family:"Barlow","Noto Sans TC",sans-serif; }
+  /* 時間軸 */
+  .tb-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  #play { width:42px; height:42px; border-radius:50%; border:0; background:var(--ink); color:#fff; font-size:15px; cursor:pointer; flex:none; box-shadow:0 4px 12px rgba(18,24,38,.2); }
+  #clock { font:500 30px "Barlow"; min-width:82px; color:var(--ink); letter-spacing:-.01em; line-height:1; }
+  #tbTitle { font-size:12px; color:var(--muted); flex:1; min-width:160px; }
+  #curve { display:block; width:100%; height:80px; margin-top:6px; cursor:pointer; }
+  #hour { -webkit-appearance:none; appearance:none; width:100%; height:24px; background:transparent; margin:2px 0 0; cursor:pointer; }
+  #hour::-webkit-slider-runnable-track { height:6px; border-radius:3px; background:#e1e5ee; }
+  #hour::-moz-range-track { height:6px; border-radius:3px; background:#e1e5ee; }
+  #hour::-webkit-slider-thumb { -webkit-appearance:none; width:22px; height:22px; margin-top:-8px; border-radius:50%; background:#fff; border:4px solid var(--ink); box-shadow:0 3px 10px rgba(18,24,38,.25); }
+  #hour::-moz-range-thumb { width:16px; height:16px; border-radius:50%; background:#fff; border:4px solid var(--ink); box-shadow:0 3px 10px rgba(18,24,38,.25); }
+  #hourTicks { display:flex; justify-content:space-between; font:600 10.5px "Barlow Semi Condensed"; color:var(--muted); padding:0 6px; letter-spacing:.06em; }
+  #legend { display:flex; align-items:center; gap:4px; flex-wrap:wrap; font-size:11.5px; color:var(--ink2); }
+  #legend .c { display:inline-flex; align-items:center; gap:4px; margin-right:8px; }
+  #legend .c i { width:10px; height:10px; border-radius:50%; display:inline-block; box-shadow:0 0 0 1.5px rgba(0,0,0,.08); }
+  #relWarn { font-size:11.5px; color:#8a4b00; background:#fff6e8; border-radius:999px; padding:3px 10px; }
+  .maplibregl-popup-content { background:#fff; color:var(--ink); font-size:12.5px; border-radius:14px; box-shadow:var(--shadow); padding:10px 13px; }
+  .maplibregl-ctrl-group { border-radius:14px !important; box-shadow:var(--shadow) !important; overflow:hidden; }
+  #err { display:none; position:absolute; top:16px; left:50%; transform:translateX(-50%); background:#fff1f0; color:#a8071a; padding:8px 14px; border-radius:999px; z-index:5; box-shadow:var(--shadow); }
   [hidden] { display:none !important; }
-  /* 手機：底部抽屜，可收合 */
+  /* ---- 手機：全部收進底部抽屜 ---- */
   @media (max-width:700px) {
-    #panel { top:auto; bottom:0; left:0; right:0; width:auto; max-height:58%; border-radius:18px 18px 0 0; }
-    #panel.folded #body { display:none; }
-    #handle { display:block; width:42px; height:5px; border-radius:3px; background:rgba(0,0,0,.18); margin:0 auto 8px; }
-    #head { padding:8px 14px 10px; }
-    #head .q { display:none; }
-    .maplibregl-ctrl-top-right { top:4px; }
+    #ui { position:absolute; left:0; right:0; bottom:0; max-height:62%; overflow:auto; z-index:3; background:var(--card); border-radius:24px 24px 0 0; box-shadow:0 -8px 28px rgba(18,24,38,.12); display:flex; flex-direction:column; }
+    #main, #side, #timebar { position:static; width:auto; max-height:none; overflow:visible; box-shadow:none; border-radius:0; }
+    #main { order:1; } #timebar { order:2; padding:8px 14px; border-top:1px solid var(--line); } #side { order:3; padding:10px 12px 16px; background:var(--bg); }
+    #head { padding:8px 16px 2px; } #head .sub { display:none; }
+    #fold { display:block; position:absolute; top:10px; right:12px; border:0; background:var(--bg); border-radius:999px; padding:5px 12px; font:600 12px "Noto Sans TC"; color:var(--ink); }
+    #handle { display:block; width:40px; height:5px; border-radius:3px; background:#d9dce4; margin:0 auto 8px; }
+    #main .body { padding:6px 14px 10px; }
+    #gauge { margin-top:8px; }
+    #ui.folded #side, #ui.folded .more { display:none; }
+    #ui.folded #tbTitle, #ui.folded #daytype, #ui.folded #season, #ui.folded #cmode, #ui.folded #hourTicks, #ui.folded #timebar .tb-row:last-child, #ui.folded #advice .note, #ui.folded #advice br, #ui.folded #gauge { display:none; }
+    #ui.folded .kpi { padding:6px 10px; } #ui.folded .kpi .v { font-size:21px; } #ui.folded #curve { height:58px; }
+    #clock { font-size:24px; }
+    .fold-b { max-height:none; }
   }
-  @media (min-width:701px) { #panel.folded #body { display:none; } }
 </style>
 </head>
 <body>
 <div id="map"></div>
 <div id="err"></div>
-<div id="panel">
-  <div id="head">
-    <div id="handle"></div>
-    <h1><span class="sun"></span>臺北跑者空品地圖</h1>
-    <p class="q">上下班車潮時段，臺北哪裡的空氣比較差？什麼時候、走哪條路跑步比較好？</p>
-    <button id="fold">收合</button>
+<div id="ui">
+  <!-- ===== 主要 ===== -->
+  <div id="main" class="panel">
+    <div id="head"><div id="handle"></div><h1><span class="sun"></span>臺北跑者空品地圖</h1><div class="sub en">Taipei Run · Air Quality</div><button id="fold">收合</button></div>
+    <div class="body">
+      <div class="seg more" id="mode"><button data-k="draw">✏️ 自己畫路線</button><button data-k="plan">🧭 起點→終點規劃</button></div>
+      <div id="drawCtl" class="more">
+        <div class="btns"><button class="btn primary" id="drawStart">開始畫線</button><button class="btn" id="drawUndo">復原</button><button class="btn" id="drawClear">清除</button><button class="btn" id="drawEnd">完成</button></div>
+      </div>
+      <div id="planCtl" class="more" hidden>
+        <div class="btns"><button class="btn" id="pickStart">① 設起點</button><button class="btn" id="pickEnd">② 設終點</button><button class="btn ghost" id="clearRoute">清除</button></div>
+        <div class="lab">偏好 <span class="en">Preferences</span></div>
+        <div class="toggles" id="mainPrefs"></div>
+        <button class="btn go" id="replan" hidden>用這個時間重新規劃</button>
+      </div>
+      <div class="note more" id="hint"></div>
+      <div id="gauge"></div>
+      <div id="advice"></div>
+      <div class="kpis" id="kpis"></div>
+    </div>
   </div>
-  <div id="body">
-    <div class="tabs" id="tabs"><button data-t="aq" class="on">空品地圖</button><button data-t="draw">畫路線</button><button data-t="plan">規劃路線</button></div>
 
-    <!-- 共用情境 -->
-    <div class="card" id="scenario">
-      <div class="row"><div class="lab">時段</div><div class="seg" id="slot"></div></div>
-      <div class="row"><div class="lab">日子</div><div class="seg" id="daytype"></div></div>
-      <div class="row"><div class="lab">季節</div><div class="seg" id="season"></div></div>
-      <div class="row"><div class="lab">指標</div><div class="seg" id="pol"></div></div>
+  <!-- ===== 次要：摺疊面板（預設收起，記住狀態） ===== -->
+  <div id="side" class="panel">
+    <section class="fold-s" data-f="detail"><button class="fold-h">詳細數據<span class="en">Details</span><span class="arr">›</span></button><div class="fold-b" id="detail"></div></section>
+    <section class="fold-s" data-f="city"><button class="fold-h">城市空品圖層<span class="en">City layers</span><span class="arr">›</span></button><div class="fold-b" id="city"></div></section>
+    <section class="fold-s" data-f="adv"><button class="fold-h">進階偏好與設定<span class="en">Settings</span><span class="arr">›</span></button><div class="fold-b" id="adv"></div></section>
+    <section class="fold-s" data-f="about"><button class="fold-h">資料說明<span class="en">About data</span><span class="arr">›</span></button><div class="fold-b" id="about"></div></section>
+  </div>
+
+  <!-- ===== 時間軸 ===== -->
+  <div id="timebar" class="panel">
+    <div class="tb-row">
+      <button id="play" aria-label="播放一整天">▶</button>
+      <span id="clock" class="num">08:00</span>
+      <span id="tbTitle"></span>
+      <div class="seg small" id="daytype"></div>
+      <div class="seg small" id="season"></div>
+      <div class="seg small" id="cmode"></div>
     </div>
-
-    <!-- 分頁：空品地圖 -->
-    <section data-p="aq">
-      <div class="card">
-        <div class="row"><div class="lab">行政區</div><select id="dist"></select></div>
-        <div class="row"><div class="lab">面量顯示</div><div class="seg" id="view"></div></div>
-        <div class="row"><label class="switch"><input type="checkbox" id="showTraffic" checked>交通站（路邊）</label><label class="switch"><input type="checkbox" id="showParks" checked>公園</label><label class="switch"><input type="checkbox" id="showRoads">幹道</label></div>
-      </div>
-      <div class="card"><div class="legend" id="legend"></div><div class="note" id="estnote"></div><div class="warn" id="aqinote" hidden></div></div>
-      <div class="card" id="info"></div>
-      <div class="card" id="rscard"></div>
-    </section>
-
-    <!-- 分頁：畫路線 -->
-    <section data-p="draw" hidden>
-      <div class="card">
-        <h3>✏️ 畫自己的路線</h3>
-        <div class="btns"><button class="btn primary" id="drawStart">開始畫線</button><button class="btn" id="drawUndo">復原上一點</button><button class="btn" id="drawClear">清除</button><button class="btn" id="drawEnd">結束</button></div>
-        <div class="note" id="drawHint">按「開始畫線」後在地圖上逐點點擊，雙擊（或按「結束」）完成。</div>
-        <div class="row" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">配速 <input id="pace" type="number" value="6" min="2" max="15" step="0.1" style="width:64px"> 分鐘／公里
-          <span style="flex:1"></span><button class="btn ghost" id="drawExport" style="flex:none">匯出 GeoJSON</button><label class="btn ghost" style="flex:none;text-align:center">匯入<input id="drawImport" type="file" accept=".geojson,.json,application/geo+json" hidden></label></div>
-      </div>
-      <div id="drawOut"></div>
-    </section>
-
-    <!-- 分頁：規劃路線 -->
-    <section data-p="plan" hidden>
-      <div class="card">
-        <h3>🧭 自動規劃 A → B</h3>
-        <div class="btns"><button class="btn" id="pickStart">① 點地圖設起點</button><button class="btn" id="pickEnd">② 點地圖設終點</button><button class="btn ghost" id="clearRoute">清除</button></div>
-        <div class="note" id="pickHint">先按①再點地圖，接著按②再點地圖。時段等情境用上方設定。</div>
-        <div class="warn" id="netStatus" hidden></div>
-      </div>
-      <div class="card">
-        <h3>偏好</h3>
-        <div class="lab">避開</div><div id="prefAvoid"></div>
-        <div class="lab" style="margin-top:8px">偏好</div><div id="prefLike"></div>
-        <div class="row" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:13px">建議路線最多比最短路線長 <input id="maxRatio" type="number" value="1.3" min="1" max="3" step="0.05" style="width:64px"> 倍</div>
-        <div class="note" id="covNote"></div>
-      </div>
-      <div id="routeOut"></div>
-    </section>
-
-    <!-- 共用：路邊加成設定 -->
-    <div class="card" id="rsSettings">
-      <h3>路邊加成設定 <span class="tag">畫線、規劃共用</span></h3>
-      <div class="row"><div class="lab">「主要幹道」包含</div><div class="seg" id="major"></div></div>
-      <div class="row" style="font-size:12.5px">幹道 <input id="rsFull" type="number" value="50" min="0" max="500" style="width:62px"> m 內全額，到 <input id="rsZero" type="number" value="150" min="1" max="1000" style="width:62px"> m 線性遞減為 0 <span class="tag est">假設值</span></div>
-    </div>
-
-    <div class="note" id="src"></div>
+    <svg id="curve" role="img" aria-label="24 小時曲線"></svg>
+    <input id="hour" type="range" min="0" max="23" step="1" value="8" aria-label="時間（0–23 點）">
+    <div id="hourTicks"></div>
+    <div class="tb-row" style="margin-top:4px"><div id="legend"></div><span id="relWarn" hidden>⚠ 相對比較：顏色只代表這個情境 24 小時內的相對好壞，<b>不代表空氣不健康</b></span></div>
   </div>
 </div>
 
 <script>
-// ================= 常數與狀態 =================
-// AQI：環境部官方分級色（良好 #00e800、普通 #ffff00、對敏感族群不健康 #ff7e00、對所有族群不健康 #ff0000、非常不健康 #8f3f97、危害 #7e0023）；
-// 同一級內用同色系深淺區分，方便看出平均值的差異。
-const AQI_BINS = [30, 40, 50, 60, 75, 100, 150, 200, 300];
-const AQI_COLORS = ['#c9f7c9', '#7cf07c', '#00e800', '#ffffa6', '#ffff00', '#f0e000', '#ff7e00', '#ff0000', '#8f3f97', '#7e0023'];
-const AQI_LEVELS = ['良好', '良好', '良好', '普通', '普通', '普通', '對敏感族群不健康', '對所有族群不健康', '非常不健康', '危害'];
-// 污染物：非官方的連續色階，只表示相對高低
-const POL_COLORS = ['#fff5d6', '#fde29a', '#fdb863', '#f4845f', '#d1495b', '#8e2c56'];
-const POLS = { 'AQI':{ label:'AQI', unit:'', bins:AQI_BINS, colors:AQI_COLORS },
-               'NO2':{ label:'NO₂', unit:'ppb', bins:[6, 9, 12, 16, 22], colors:POL_COLORS },
-               'PM2.5':{ label:'PM2.5', unit:'μg/m³', bins:[8, 10, 12, 14, 16], colors:POL_COLORS },
-               'O3':{ label:'O₃', unit:'ppb', bins:[15, 22, 29, 36, 45], colors:POL_COLORS } };
+// ===================================================================
+// 常數與狀態
+// ===================================================================
+// 空品色：藍＝好 → 紅＝差。分級界線照環境部 AQI（0–50 良好、51–100 普通、101–150 對敏感族群不健康…），色彩改用溫和的藍紅色階
+const OFFICIAL = [[50, '#3f7fc8', '良好'], [100, '#9fc0e4', '普通'], [150, '#f0a582', '對敏感族群不健康'], [200, '#d9534f', '對所有族群不健康'], [300, '#a33a4f', '非常不健康'], [Infinity, '#6e2337', '危害']];
+const REL_STOPS = [[0, [63, 127, 200]], [0.4, [159, 192, 228]], [0.6, [240, 196, 176]], [1, [217, 83, 79]]];   // 相對比較：藍→淺藍→淺紅→紅
 const MISSING = '#c4c8cf';
+const POLS = { AQI:{ label:'AQI', unit:'' }, NO2:{ label:'NO₂', unit:'ppb' }, 'PM2.5':{ label:'PM2.5', unit:'μg/m³' }, O3:{ label:'O₃', unit:'ppb' } };
 const SEASONS = { all:'全年', winter:'冬', spring:'春', summer:'夏', autumn:'秋' };
-const SEASON_FULL = { all:'全年', winter:'冬 12–2月', spring:'春 3–5月', summer:'夏 6–8月', autumn:'秋 9–11月' };
+const SEASON_FULL = { all:'全年', winter:'冬季 12–2 月', spring:'春季 3–5 月', summer:'夏季 6–8 月', autumn:'秋季 9–11 月' };
 const DAYS = { weekday:'平日', holiday:'假日' };
-const SLOTS = { dawn:'清晨 5–7', am_peak:'上班 7–9', noon:'中午 11–13', pm_peak:'下班 17–19', night:'夜間 19–22' };
-const SLOT_FULL = { dawn:'清晨 5–7', am_peak:'上班尖峰 7–9', noon:'中午 11–13', pm_peak:'下班尖峰 17–19', night:'夜間 19–22' };
-const SLOT_SHORT = { dawn:'清晨', am_peak:'上班', noon:'中午', pm_peak:'下班', night:'夜間' };
-const PEAK = ['am_peak', 'pm_peak'], OFF = ['dawn', 'noon', 'night'];
-const VIEWS = { district:'行政區', grid:'500 m 網格' };
-const FAR_M = 4000;
-const S = { pol:'AQI', season:'all', daytype:'weekday', slot:'am_peak', dist:-1, view:'district', tab:'aq' };
-const ST = window.AQ_STATIONS, G = window.GRID, D = window.DISTRICTS, RS = window.AQ_ROADSIDE;
+const PEAK_H = [7, 8, 17, 18], OFF_H = [5, 6, 11, 12, 19, 20, 21];
+const C = { coral:'#e07a5f', green:'#2e9e6b', sky:'#5b8fd1', grey:'#8a93a6', ink:'#121826', lime:'#c6ff3d' };   // 螢光綠只給路線
+const ST = window.AQ_STATIONS, G = window.GRID, D = window.DISTRICTS, RSH = window.AQ_ROADSIDE_H, AQH = window.AQ_H;
 const NAMES = D.features.map(f => f.properties.name);
-const USE = ST.map(s => s.type === '一般站');   // IDW 只用 9 個一般站；交通站只顯示、不內插
-const C = { coral:'#ff6b4a', green:'#22a861', sky:'#2f9bf0', grey:'#7b8494' };
-
-// ================= 空品計算 =================
-const stationVals = (pol, se, dt, sl) => window.AQ_VALUES[pol][se][dt][sl];
-function idw(dist, vals) {
-  let num = 0, den = 0;
-  for (let i = 0; i < vals.length; i++) { const v = vals[i]; if (v === null || !USE[i]) continue; const d = dist[i]; if (d < 1) return v; const w = 1 / (d * d); num += w * v; den += w; }
-  return den ? num / den : null;
-}
-const gridVals = (pol, se, dt, sl) => { const sv = stationVals(pol, se, dt, sl).v; return G.map(c => idw(c.dist, sv)); };
-function districtVals(gv) {
-  const sum = Array(NAMES.length).fill(0), n = Array(NAMES.length).fill(0);
-  G.forEach((c, i) => { if (gv[i] !== null) { sum[c.d] += gv[i]; n[c.d]++; } });
-  return sum.map((s, i) => n[i] ? s / n[i] : null);
-}
-function colorOf(v, pol) { if (v === null || v === undefined) return MISSING; const P = POLS[pol]; let k = 0; while (k < P.bins.length && v >= P.bins[k]) k++; return P.colors[k]; }
-const fmt = (v, pol) => v === null || v === undefined ? '缺值' : v.toFixed(1);
-const unit = p => POLS[p].unit ? ' ' + POLS[p].unit : '';
-const aqiLevel = v => { let k = 0; while (k < AQI_BINS.length && v >= AQI_BINS[k]) k++; return AQI_LEVELS[k]; };
-
-// ================= 網格幾何 =================
-const dLat = (window.GRID_CELL_M / 2) / 110950;
-const gridFC = { type:'FeatureCollection', features: G.map((c, i) => {
-  const dLon = (window.GRID_CELL_M / 2) / (111320 * Math.cos(c.lat * Math.PI / 180));
-  const gd = c.dist.map((d, k) => USE[k] ? d : Infinity), near = Math.min(...gd), ni = gd.indexOf(near);
-  return { type:'Feature', id:i, properties:{ i, d:c.d, near_m:near, near_st:ST[ni].name, far: near > FAR_M },
-    geometry:{ type:'Polygon', coordinates:[[[c.lon-dLon,c.lat-dLat],[c.lon+dLon,c.lat-dLat],[c.lon+dLon,c.lat+dLat],[c.lon-dLon,c.lat+dLat],[c.lon-dLon,c.lat-dLat]]] } };
-}) };
-const farCount = gridFC.features.filter(f => f.properties.far).length;
-
-// ================= UI =================
-function buildSeg(id, opts, key, cb) {
-  const el = document.getElementById(id);
-  for (const [k, lab] of Object.entries(opts)) {
-    const b = document.createElement('button'); b.textContent = typeof lab === 'object' ? lab.label : lab; b.dataset.k = k;
-    b.onclick = () => { S[key] = k; (cb || render)(); }; el.appendChild(b);
-  }
-}
-buildSeg('slot', SLOTS, 'slot'); buildSeg('daytype', DAYS, 'daytype'); buildSeg('season', SEASONS, 'season'); buildSeg('pol', POLS, 'pol'); buildSeg('view', VIEWS, 'view');
-const sel = document.getElementById('dist');
-sel.innerHTML = '<option value="-1">全市</option>' + NAMES.map((n, i) => `<option value="${i}">${n}${D.features[i].properties.has_station ? '' : '（無測站）'}</option>`).join('');
-sel.onchange = () => { S.dist = +sel.value; zoomToDist(); render(); };
-document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => setTab(b.dataset.t));
-function setTab(t) {
-  S.tab = t;
-  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
-  document.querySelectorAll('section[data-p]').forEach(s => s.hidden = s.dataset.p !== t);
-  if (t === 'plan') loadNet();
-  if (window.__ready) { const op = t === 'aq' ? 0.5 : 0.08; map.setPaintProperty('dist-fill', 'fill-opacity', S.view === 'grid' ? 0 : op); map.setPaintProperty('grid-fill', 'fill-opacity', ['case', ['get', 'far'], op * 0.5, op + 0.1]); }
-}
-const R = { pick:null, start:null, end:null, major:'secondary' };   // 臺北多數幹道（信義路、仁愛路、南京東路…）在 OSM 標為 secondary
-(() => { const mj = document.getElementById('major');
-  for (const [k, l] of [['secondary', '快速＋主要＋次要道路'], ['primary', '只算快速＋主要道路']]) { const b = document.createElement('button'); b.textContent = l; b.dataset.k = k; b.onclick = () => { R.major = k; render(); }; mj.appendChild(b); }
-  for (const id of ['rsFull', 'rsZero']) document.getElementById(id).addEventListener('change', () => render());
-})();
-const panel = document.getElementById('panel');
-document.getElementById('fold').onclick = () => { const f = panel.classList.toggle('folded'); document.getElementById('fold').textContent = f ? '展開' : '收合'; };
-document.getElementById('handle').onclick = () => document.getElementById('fold').click();
-
-document.getElementById('src').innerHTML =
-  `<b>資料來源</b>：臺北市政府環境保護局 12 個自動測站逐時資料（${AQ_META.period}，${AQ_META.rows.toLocaleString()} 筆）、測站基本資料、行道樹與公園樹、公園基本資料（臺北市資料大平臺，政府資料開放授權條款第 1 版）；` +
-  `行政區界線；路網、幹道、公園面、商店、商業區 © OpenStreetMap contributors（ODbL）。底圖 © OpenFreeMap © OpenMapTiles © OpenStreetMap contributors。<br>` +
-  `數值為該情境所有有效小時的平均；「-」與 AQI=0 當缺測。日子：${AQ_META.holiday_note}。氣象資料（臺北站 466920）缺少，未考慮風與降雨。`;
-
-// ================= 地圖 =================
-const map = new maplibregl.Map({ container:'map', style:'https://tiles.openfreemap.org/styles/liberty', center:[121.565, 25.06], zoom:11, attributionControl:{ compact:false } });
-map.addControl(new maplibregl.NavigationControl(), 'top-right');
-map.on('error', e => { const m = String(e && e.error && e.error.message || ''); if (/openfreemap|style/.test(m)) showErr('底圖載入失敗（需要網路），資料圖層仍可使用。'); });
-function showErr(t) { const el = document.getElementById('err'); el.textContent = t; el.style.display = 'block'; }
-const stFC = { type:'FeatureCollection', features: ST.map((s, i) => ({ type:'Feature', id:i, properties:{ i, name:s.name.replace('站', ''), type:s.type }, geometry:{ type:'Point', coordinates:[s.lon, s.lat] } })) };
+const USE = ST.map(s => s.type === '一般站');   // IDW 只用 9 個一般站
 const KY = 110950, kxAt = lat => 111320 * Math.cos(lat * Math.PI / 180);
+const pad2 = n => String(n).padStart(2, '0');
+const hhmm = m => { m = ((Math.round(m) % 1440) + 1440) % 1440; return pad2(Math.floor(m / 60)) + ':' + pad2(m % 60); };
+const hmsDur = m => { const s = Math.round(m * 60), h = Math.floor(s / 3600), mm = Math.floor(s % 3600 / 60), ss = s % 60; return (h ? h + ':' + pad2(mm) : mm) + ':' + pad2(ss); };
+const fmt = v => v === null || v === undefined || Number.isNaN(v) ? '缺值' : (+v).toFixed(1);
+const unit = p => POLS[p].unit ? ' ' + POLS[p].unit : '';
+// 預設＝臺北現在時刻；週六日視為假日（國定假日未判斷）
+const nowTP = (() => { const f = new Intl.DateTimeFormat('en-US', { timeZone:'Asia/Taipei', hour:'numeric', hourCycle:'h23', weekday:'short' }).formatToParts(new Date());
+  return { hour: +f.find(p => p.type === 'hour').value % 24, wk: f.find(p => p.type === 'weekday').value }; })();
+const S = { pol:'AQI', season:'all', daytype: (nowTP.wk === 'Sat' || nowTP.wk === 'Sun') ? 'holiday' : 'weekday', hour: nowTP.hour, color:'official', mode:'draw', dist:-1, pace:6 };
+const R = { pick:null, start:null, end:null, rsOn:true, major:'secondary', rsFull:50, rsZero:150, maxRatio:1.3 };   // 路邊加成：只有一個開關，其餘固定   // 臺北多數幹道在 OSM 標為 secondary
+const store = { get(k, d) { try { const v = localStorage.getItem('runmap.' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+                set(k, v) { try { localStorage.setItem('runmap.' + k, JSON.stringify(v)); } catch (e) {} } };
 
-// ---- 階段一要用的索引 ----
+// ===================================================================
+// 空品：測站小時值、IDW、路邊加成
+// ===================================================================
+const stV = (pol, h) => AQH[pol][S.season][S.daytype].v[h];
+const stN = (pol, h) => AQH[pol][S.season][S.daytype].n[h];
+const rsH = (pol, h) => RSH.values[pol][S.season][S.daytype].mean[h] || 0;
+const lowSample = h => Math.min(...stN('AQI', h).filter((_, i) => USE[i])) < AQ_META.min_n;
+function idw(dist, vals) { let num = 0, den = 0;
+  for (let i = 0; i < vals.length; i++) { const v = vals[i]; if (v === null || !USE[i]) continue; const d = dist[i]; if (d < 1) return v; const w = 1 / (d * d); num += w * v; den += w; }
+  return den ? num / den : null; }
+function rsF(d) { if (!R.rsOn) return 0; const full = R.rsFull, zero = Math.max(R.rsZero, full + 1); return d <= full ? 1 : d >= zero ? 0 : (zero - d) / (zero - full); }
+const dMajOf = (d1, d2) => R.major === 'primary' ? d1 : Math.min(d1, d2);
+const gridAt = (pol, h) => { const sv = stV(pol, h); return G.map(c => idw(c.dist, sv)); };
+function distAt(gv) { const sum = Array(NAMES.length).fill(0), n = Array(NAMES.length).fill(0);
+  G.forEach((c, i) => { if (gv[i] !== null) { sum[c.d] += gv[i]; n[c.d]++; } }); return sum.map((s, i) => n[i] ? s / n[i] : null); }
+const mapCache = {};
+function mapRange(pol) {   // 這個情境 24 小時、全市網格與測站的最小／最大，以及全市平均曲線
+  const key = [pol, S.season, S.daytype].join('|'); if (mapCache[key]) return mapCache[key];
+  let mn = Infinity, mx = -Infinity; const curve = [];
+  for (let h = 0; h < 24; h++) { const gv = gridAt(pol, h); let s = 0, n = 0;
+    for (const v of gv) if (v !== null) { mn = Math.min(mn, v); mx = Math.max(mx, v); s += v; n++; }
+    for (const v of stV(pol, h)) if (v !== null) { mn = Math.min(mn, v); mx = Math.max(mx, v); }
+    curve.push(n ? s / n : null); }
+  return mapCache[key] = { min:mn, max:mx, curve };
+}
+
+// ===================================================================
+// 色彩：官方標準（只適用 AQI）／相對比較
+// ===================================================================
+const effMode = () => (S.color === 'official' && S.pol === 'AQI') ? 'official' : 'relative';
+function offColor(v) { const r = Math.round(v); for (const [t, c] of OFFICIAL) if (r <= t) return c; }
+function relColor(v, rg) { let t = rg.max > rg.min ? (v - rg.min) / (rg.max - rg.min) : 0.5; t = Math.max(0, Math.min(1, t));
+  for (let i = 1; i < REL_STOPS.length; i++) { const [t1, c1] = REL_STOPS[i]; if (t <= t1) { const [t0, c0] = REL_STOPS[i - 1], u = (t - t0) / (t1 - t0);
+    return 'rgb(' + c0.map((x, j) => Math.round(x + (c1[j] - x) * u)).join(',') + ')'; } } return 'rgb(224,48,43)'; }
+const colorFor = (v, rg) => v === null || v === undefined || Number.isNaN(v) ? MISSING : effMode() === 'official' ? offColor(v) : relColor(v, rg);
+const levelOf = v => { const r = Math.round(v); for (const [t, , l] of OFFICIAL) if (r <= t) return l; };
+
+// ===================================================================
+// 路線模型（自己畫的路線、規劃的建議路線、最短路線共用）
+// seg = { c:[[lon,lat]…], L, dSt:[到 12 站距離 m], d1, d2, park, pname, sw, comm, river, trees }
+// ===================================================================
+let ROUTE = null, SHORT = null;
+function makeModel(kind, segs, extra = {}) { let cum = 0; segs.forEach(s => { s.cum = cum; cum += s.L; }); return { kind, segs, L: cum, cache:{}, ...extra }; }
+function routeMatrix(m, pol) {   // [段][24 小時] 推估值（背景 IDW ＋ 路邊加成×距離係數）
+  const key = [pol, S.season, S.daytype, R.rsOn, R.major, R.rsFull, R.rsZero].join('|'); if (m.cache[key]) return m.cache[key];
+  const n = m.segs.length, M = new Float32Array(n * 24);
+  for (let h = 0; h < 24; h++) { const sv = stV(pol, h), rs = rsH(pol, h);
+    m.segs.forEach((s, i) => { const b = idw(s.dSt, sv); M[i * 24 + h] = b === null ? NaN : b + rs * rsF(dMajOf(s.d1, s.d2)); }); }
+  let mn = Infinity, mx = -Infinity; for (const v of M) if (!Number.isNaN(v)) { mn = Math.min(mn, v); mx = Math.max(mx, v); }
+  return m.cache[key] = { M, n, min:mn, max:mx };
+}
+function hourAvg(m, pol, h) { const { M } = routeMatrix(m, pol); let a = 0, w = 0; m.segs.forEach((s, i) => { const v = M[i * 24 + h]; if (!Number.isNaN(v)) { a += v * s.L; w += s.L; } }); return w ? a / w : null; }
+const pace = () => Math.max(2, +S.pace || 6);
+const runMin = m => m.L / 1000 * pace();
+function runAvg(m, pol, startMin) {   // 考慮跑步所需時間：每一段用「跑到那裡時」的小時值
+  const { M } = routeMatrix(m, pol), p = pace(); let a = 0, w = 0;
+  m.segs.forEach((s, i) => { const t = startMin + (s.cum + s.L / 2) / 1000 * p, h = Math.floor((((t % 1440) + 1440) % 1440) / 60), v = M[i * 24 + h];
+    if (!Number.isNaN(v)) { a += v * s.L; w += s.L; } });
+  return w ? a / w : null;
+}
+function bestStart(m, pol) { let best = null; for (let t = 0; t < 1440; t += 15) { const v = runAvg(m, pol, t); if (v !== null && (!best || v < best.v - 1e-9)) best = { t, v }; } return best; }
+
+// ===================================================================
+// UI 建構
+// ===================================================================
+function buildSeg(id, opts, key, cb) { const el = document.getElementById(id); el.innerHTML = '';
+  for (const [k, lab] of Object.entries(opts)) { const b = document.createElement('button'); b.textContent = lab; b.dataset.k = k; b.onclick = () => { S[key] = k; (cb || render)(); }; el.appendChild(b); } }
+buildSeg('daytype', DAYS, 'daytype', onScenario); buildSeg('season', SEASONS, 'season', onScenario);
+buildSeg('cmode', { official:'官方標準', relative:'相對比較' }, 'color');
+document.getElementById('hourTicks').innerHTML = [0, 3, 6, 9, 12, 15, 18, 21, 23].map(h => `<span>${h}</span>`).join('');
+document.querySelectorAll('#mode button').forEach(b => b.onclick = () => setMode(b.dataset.k));
+document.querySelectorAll('.fold-s').forEach(s => { if (store.get('fold.' + s.dataset.f, false)) s.classList.add('open');
+  s.querySelector('.fold-h').onclick = () => { s.classList.toggle('open'); store.set('fold.' + s.dataset.f, s.classList.contains('open')); if (ROUTE && !isMobile()) fitRoute(); }; });
+const ui = document.getElementById('ui');
+document.getElementById('fold').onclick = () => { const f = ui.classList.toggle('folded'); document.getElementById('fold').textContent = f ? '展開' : '收合'; store.set('sheetFolded', f); };
+document.getElementById('handle').onclick = () => document.getElementById('fold').click();
+if (store.get('sheetFolded', false)) { ui.classList.add('folded'); document.getElementById('fold').textContent = '展開'; }
+
+// ---- 偏好：主要 4 個開關，進階可調強度與另外 2 項 ----
+const PREFS = {
+  road:{ ico:'🚗', l:'避開大車道', on:true, w:3, main:true }, comm:{ ico:'🛍️', l:'避開商圈', on:true, w:1, main:true },
+  green:{ ico:'🌿', l:'偏好公園', on:true, w:2, main:true }, shade:{ ico:'🌳', l:'偏好樹蔭', on:true, w:1, main:true },
+  air:{ ico:'💨', l:'避開空污', on:true, w:3 }, sw:{ ico:'🚶', l:'偏好人行道', on:true, w:1 } };
+const effW = k => PREFS[k].on ? PREFS[k].w : 0;
+function renderPrefToggles() {
+  document.getElementById('mainPrefs').innerHTML = Object.entries(PREFS).filter(([, p]) => p.main).map(([k, p]) =>
+    `<div class="tg ${p.on ? 'on' : ''}" data-k="${k}" role="switch" aria-checked="${p.on}" tabindex="0"><span class="sw2"></span><span>${p.ico} ${p.l}</span></div>`).join('');
+  document.querySelectorAll('#mainPrefs .tg').forEach(el => { const f = () => { const p = PREFS[el.dataset.k]; p.on = !p.on; renderPrefToggles(); renderAdv(); markStale('偏好已改變'); };
+    el.onclick = f; el.onkeydown = e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); f(); } }; });
+}
+
+// ===================================================================
+// 地圖
+// ===================================================================
+const map = new maplibregl.Map({ container:'map', style:'https://tiles.openfreemap.org/styles/positron', center:[121.56, 25.05], zoom:11, attributionControl:{ compact:false } });
+map.addControl(new maplibregl.NavigationControl(), 'top-right');
+// 只有在 10 秒後樣式仍未載入時才提示（個別圖磚中斷不算失敗）
+setTimeout(() => { if (!window.__ready) showErr('底圖載入失敗或太慢（需要網路），請重新整理。'); }, 12000);
+function showErr(t) { const el = document.getElementById('err'); el.textContent = t; el.style.display = 'block'; }
+const isMobile = () => innerWidth <= 700;
+function padL() { if (isMobile()) return { top:30, bottom: Math.min(ui.getBoundingClientRect().height, innerHeight * 0.62) + 20, left:24, right:24 };
+  // 依面板實際大小留白，路線不會被擋住
+  const tb = document.getElementById('timebar').getBoundingClientRect(), mn = document.getElementById('main').getBoundingClientRect();
+  const sd = document.getElementById('side').getBoundingClientRect();   // 收起時標題列仍佔右上角，一律預留
+  return { top:40, bottom: Math.round(innerHeight - tb.top + 20), left: Math.round(mn.right + 24), right: Math.round(innerWidth - sd.left + 24) }; }
+const gridFC = { type:'FeatureCollection', features: G.map((c, i) => {
+  const dLat = (window.GRID_CELL_M / 2) / 110950, dLon = (window.GRID_CELL_M / 2) / (111320 * Math.cos(c.lat * Math.PI / 180));
+  const gd = c.dist.map((d, k) => USE[k] ? d : Infinity), near = Math.min(...gd);
+  return { type:'Feature', id:i, properties:{ i, d:c.d, near_m:near, near_st:ST[gd.indexOf(near)].name, far: near > 4000 },
+    geometry:{ type:'Polygon', coordinates:[[[c.lon-dLon,c.lat-dLat],[c.lon+dLon,c.lat-dLat],[c.lon+dLon,c.lat+dLat],[c.lon-dLon,c.lat+dLat],[c.lon-dLon,c.lat-dLat]]] } }; }) };
+const stFC = { type:'FeatureCollection', features: ST.map((s, i) => ({ type:'Feature', id:i, properties:{ i, name:s.name.replace('站', ''), type:s.type }, geometry:{ type:'Point', coordinates:[s.lon, s.lat] } })) };
 const TR = (() => { const T = window.TREES || [], n = T.length / 2, lon = new Float64Array(n), lat = new Float64Array(n), cell = new Map(), CS = 0.001;
   for (let i = 0; i < n; i++) { lon[i] = T[2*i] / 1e5; lat[i] = T[2*i+1] / 1e5; const key = Math.floor(lon[i] / CS) * 100000 + Math.floor(lat[i] / CS); (cell.get(key) || cell.set(key, []).get(key)).push(i); }
   return { n, lon, lat, cell, CS }; })();
-const RD = (window.ROADS || []).map(([c, cs]) => { const p = cs.map(([x, y]) => [x / 1e5, y / 1e5]); const xs = p.map(q => q[0]), ys = p.map(q => q[1]);
-  return { c, p, b:[Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] }; });
-const PP = (window.PARK_POLYS || []).map(o => { const r = o.r.map(([x, y]) => [x / 1e5, y / 1e5]); const xs = r.map(q => q[0]), ys = r.map(q => q[1]);
-  return { n:o.n, r, b:[Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] }; });
+const RD = (window.ROADS || []).map(([c, cs]) => { const p = cs.map(([x, y]) => [x / 1e5, y / 1e5]); const xs = p.map(q => q[0]), ys = p.map(q => q[1]); return { c, p, b:[Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] }; });
+const PP = (window.PARK_POLYS || []).map(o => { const r = o.r.map(([x, y]) => [x / 1e5, y / 1e5]); const xs = r.map(q => q[0]), ys = r.map(q => q[1]); return { n:o.n, r, b:[Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] }; });
 const PC = window.PARK_CIRCLES || [];
+const LAYERS = Object.assign({ dist:true, grid:false, st:true, traffic:true, parks:true, roads:false }, store.get('layers', {}));
+const EMPTY = { type:'FeatureCollection', features:[] };
 
 map.on('load', () => {
   const firstSymbol = map.getStyle().layers.find(l => l.type === 'symbol')?.id;
@@ -280,363 +347,380 @@ map.on('load', () => {
   map.addSource('st', { type:'geojson', data:stFC });
   map.addSource('parksrc', { type:'geojson', data:{ type:'FeatureCollection', features: PP.map(p => ({ type:'Feature', properties:{ n:p.n }, geometry:{ type:'Polygon', coordinates:[p.r] } })) } });
   map.addSource('roadsrc', { type:'geojson', data:{ type:'FeatureCollection', features: RD.map(r => ({ type:'Feature', properties:{ c:r.c }, geometry:{ type:'LineString', coordinates:r.p } })) } });
-  map.addLayer({ id:'grid-fill', type:'fill', source:'grid', layout:{ visibility:'none' }, paint:{ 'fill-color':['coalesce', ['feature-state', 'c'], MISSING], 'fill-opacity':['case', ['get', 'far'], 0.25, 0.6] } }, firstSymbol);
-  map.addLayer({ id:'dist-fill', type:'fill', source:'dist', paint:{ 'fill-color':['coalesce', ['feature-state', 'c'], MISSING], 'fill-opacity':0.5 } }, firstSymbol);
-  map.addLayer({ id:'parks-fill', type:'fill', source:'parksrc', paint:{ 'fill-color':'#22a861', 'fill-opacity':0.18, 'fill-outline-color':'#1a8f50' } }, firstSymbol);
-  map.addLayer({ id:'roads-line', type:'line', source:'roadsrc', layout:{ visibility:'none' }, paint:{ 'line-color':['match', ['get', 'c'], 1, '#e5484d', '#f59e0b'], 'line-width':['match', ['get', 'c'], 1, 2.5, 1.5], 'line-opacity':0.75 } });
-  map.addLayer({ id:'dist-line', type:'line', source:'dist', paint:{ 'line-color':['case', ['get', 'has_station'], '#5b6472', '#e8502f'], 'line-width':['case', ['boolean', ['feature-state', 'sel'], false], 3.5, 1.3],
-    'line-dasharray':['case', ['get', 'has_station'], ['literal', [1, 0]], ['literal', [2, 1.5]]] } });
-  // 繪製路線、規劃路線
-  for (const s of ['drawSeg', 'draw', 'route', 'pts']) map.addSource(s, { type:'geojson', data:{ type:'FeatureCollection', features:[] } });
-  map.addLayer({ id:'route-short', type:'line', source:'route', filter:['==', ['get', 'kind'], 'short'], layout:{ 'line-cap':'round', 'line-join':'round' }, paint:{ 'line-color':C.grey, 'line-width':5, 'line-dasharray':[1.2, 1.4] } });
-  map.addLayer({ id:'route-best-casing', type:'line', source:'route', filter:['==', ['get', 'kind'], 'best'], layout:{ 'line-cap':'round', 'line-join':'round' }, paint:{ 'line-color':'#fff', 'line-width':11 } });
-  map.addLayer({ id:'route-best', type:'line', source:'route', filter:['==', ['get', 'kind'], 'best'], layout:{ 'line-cap':'round', 'line-join':'round' }, paint:{ 'line-color':C.coral, 'line-width':7 } });
-  map.addLayer({ id:'draw-casing', type:'line', source:'draw', filter:['==', ['get', 'k'], 'line'], layout:{ 'line-cap':'round', 'line-join':'round' }, paint:{ 'line-color':'#3d4450', 'line-width':12 } });
-  map.addLayer({ id:'draw-seg', type:'line', source:'drawSeg', layout:{ 'line-cap':'round', 'line-join':'round' }, paint:{ 'line-color':['get', 'c'], 'line-width':8 } });
-  map.addLayer({ id:'draw-pts', type:'circle', source:'draw', filter:['!=', ['get', 'k'], 'line'], paint:{ 'circle-radius':['match', ['get', 'k'], 'start', 7, 4], 'circle-color':['match', ['get', 'k'], 'start', C.green, '#ffffff'], 'circle-stroke-width':2, 'circle-stroke-color':C.coral } });
-  map.addLayer({ id:'pts', type:'circle', source:'pts', paint:{ 'circle-radius':9, 'circle-color':['match', ['get', 'k'], 'start', C.green, C.coral], 'circle-stroke-width':3, 'circle-stroke-color':'#fff' } });
+  for (const s of ['seg', 'short', 'draw', 'pts', 'worst']) map.addSource(s, { type:'geojson', data:EMPTY });
+  map.addLayer({ id:'grid-fill', type:'fill', source:'grid', paint:{ 'fill-color':['coalesce', ['feature-state', 'c'], MISSING], 'fill-opacity':0.45 } }, firstSymbol);
+  map.addLayer({ id:'dist-fill', type:'fill', source:'dist', paint:{ 'fill-color':['coalesce', ['feature-state', 'c'], MISSING], 'fill-opacity':0.4 } }, firstSymbol);
+  map.addLayer({ id:'parks-fill', type:'fill', source:'parksrc', paint:{ 'fill-color':'#22a861', 'fill-opacity':0.16, 'fill-outline-color':'#1a8f50' } }, firstSymbol);
+  map.addLayer({ id:'roads-line', type:'line', source:'roadsrc', paint:{ 'line-color':['match', ['get', 'c'], 1, '#e5484d', '#f59e0b'], 'line-width':['match', ['get', 'c'], 1, 2.5, 1.5], 'line-opacity':0.7 } });
+  // 有測站＝灰色實線；無測站＝紅色虛線（line-dasharray 不支援依資料變化，所以拆成兩層）
+  map.addLayer({ id:'dist-line', type:'line', source:'dist', filter:['==', ['get', 'has_station'], true], paint:{ 'line-color':'#5b6472', 'line-width':['case', ['boolean', ['feature-state', 'sel'], false], 3.5, 1.1] } });
+  map.addLayer({ id:'dist-line-nost', type:'line', source:'dist', filter:['==', ['get', 'has_station'], false], paint:{ 'line-color':'#e8502f', 'line-width':['case', ['boolean', ['feature-state', 'sel'], false], 3.5, 1.4], 'line-dasharray':[2, 1.5] } });
+  map.addLayer({ id:'short-line', type:'line', source:'short', layout:{ 'line-cap':'round', 'line-join':'round' }, paint:{ 'line-color':C.grey, 'line-width':5, 'line-dasharray':[1.2, 1.4] } });
+  map.addLayer({ id:'draw-guide', type:'line', source:'draw', filter:['==', ['get', 'k'], 'line'], paint:{ 'line-color':'#3d4450', 'line-width':2, 'line-dasharray':[2, 2] } });
+  map.addLayer({ id:'seg-casing', type:'line', source:'seg', layout:{ 'line-cap':'round', 'line-join':'round' }, paint:{ 'line-color':C.lime, 'line-width':16 } });
+  map.addLayer({ id:'seg-edge', type:'line', source:'seg', layout:{ 'line-cap':'round', 'line-join':'round' }, paint:{ 'line-color':'#1f2a1a', 'line-width':1, 'line-gap-width':8, 'line-opacity':.55 } });
+  map.addLayer({ id:'seg-line', type:'line', source:'seg', layout:{ 'line-cap':'round', 'line-join':'round' }, paint:{ 'line-color':['get', 'c'], 'line-width':9 } });
+  map.addLayer({ id:'draw-pts', type:'circle', source:'draw', filter:['!=', ['get', 'k'], 'line'], paint:{ 'circle-radius':['match', ['get', 'k'], 'start', 8, 4], 'circle-color':['match', ['get', 'k'], 'start', C.lime, '#ffffff'], 'circle-stroke-width':2, 'circle-stroke-color':C.ink } });
+  map.addLayer({ id:'worst', type:'circle', source:'worst', paint:{ 'circle-radius':12, 'circle-color':'rgba(0,0,0,0)', 'circle-stroke-width':3, 'circle-stroke-color':'#d9534f' } });
+  map.addLayer({ id:'worst-label', type:'symbol', source:'worst', layout:{ 'text-field':['get', 't'], 'text-font':['Noto Sans Bold'], 'text-size':12, 'text-offset':[0, -1.8] }, paint:{ 'text-color':'#b03a36', 'text-halo-color':'#fff', 'text-halo-width':2 } });
+  map.addLayer({ id:'pts', type:'circle', source:'pts', paint:{ 'circle-radius':9, 'circle-color':['match', ['get', 'k'], 'start', C.lime, C.ink], 'circle-stroke-width':3, 'circle-stroke-color':['match', ['get', 'k'], 'start', C.ink, '#fff'] } });
   map.addLayer({ id:'pts-label', type:'symbol', source:'pts', layout:{ 'text-field':['match', ['get', 'k'], 'start', '起點', '終點'], 'text-font':['Noto Sans Bold'], 'text-size':13, 'text-offset':[0, -1.6] }, paint:{ 'text-color':'#1f2933', 'text-halo-color':'#fff', 'text-halo-width':2 } });
-  // 測站
-  map.addLayer({ id:'st-circle', type:'circle', source:'st', filter:['==', ['get', 'type'], '一般站'], paint:{ 'circle-radius':8, 'circle-color':['coalesce', ['feature-state', 'c'], MISSING], 'circle-stroke-width':3, 'circle-stroke-color':'#ffffff' } });
-  map.addLayer({ id:'st-label', type:'symbol', source:'st', filter:['==', ['get', 'type'], '一般站'], layout:{ 'text-field':['get', 'name'], 'text-size':12, 'text-offset':[0, 1.3], 'text-anchor':'top', 'text-font':['Noto Sans Bold'] }, paint:{ 'text-color':'#1f2933', 'text-halo-color':'#fff', 'text-halo-width':2 } });
-  map.addLayer({ id:'traffic-halo', type:'circle', source:'st', filter:['==', ['get', 'type'], '交通站'], paint:{ 'circle-radius':15, 'circle-color':'rgba(0,0,0,0)', 'circle-stroke-width':2.5, 'circle-stroke-color':C.coral } });
-  map.addLayer({ id:'traffic-circle', type:'circle', source:'st', filter:['==', ['get', 'type'], '交通站'], paint:{ 'circle-radius':8, 'circle-color':['coalesce', ['feature-state', 'c'], MISSING], 'circle-stroke-width':3, 'circle-stroke-color':C.coral } });
-  map.addLayer({ id:'traffic-label', type:'symbol', source:'st', filter:['==', ['get', 'type'], '交通站'], layout:{ 'text-field':['concat', ['get', 'name'], '（路邊）'], 'text-size':12, 'text-offset':[0, 1.6], 'text-anchor':'top', 'text-font':['Noto Sans Bold'] }, paint:{ 'text-color':C.coral, 'text-halo-color':'#fff', 'text-halo-width':2 } });
+  map.addLayer({ id:'st-circle', type:'circle', source:'st', filter:['==', ['get', 'type'], '一般站'], paint:{ 'circle-radius':7, 'circle-color':['coalesce', ['feature-state', 'c'], MISSING], 'circle-stroke-width':2.5, 'circle-stroke-color':'#ffffff' } });
+  map.addLayer({ id:'st-label', type:'symbol', source:'st', filter:['==', ['get', 'type'], '一般站'], layout:{ 'text-field':['get', 'name'], 'text-size':11.5, 'text-offset':[0, 1.2], 'text-anchor':'top', 'text-font':['Noto Sans Bold'] }, paint:{ 'text-color':'#1f2933', 'text-halo-color':'#fff', 'text-halo-width':2 } });
+  map.addLayer({ id:'traffic-circle', type:'circle', source:'st', filter:['==', ['get', 'type'], '交通站'], paint:{ 'circle-radius':7, 'circle-color':['coalesce', ['feature-state', 'c'], MISSING], 'circle-stroke-width':3, 'circle-stroke-color':C.coral } });
+  map.addLayer({ id:'traffic-label', type:'symbol', source:'st', filter:['==', ['get', 'type'], '交通站'], layout:{ 'text-field':['concat', ['get', 'name'], '（路邊）'], 'text-size':11.5, 'text-offset':[0, 1.3], 'text-anchor':'top', 'text-font':['Noto Sans Bold'] }, paint:{ 'text-color':C.coral, 'text-halo-color':'#fff', 'text-halo-width':2 } });
 
   const busy = () => R.pick || DR.active;
   map.on('click', 'st-circle', e => { if (busy()) return; stationPopup(e.features[0].properties.i, e.lngLat); e.preventDefault(); });
   map.on('click', 'traffic-circle', e => { if (busy()) return; stationPopup(e.features[0].properties.i, e.lngLat); e.preventDefault(); });
-  map.on('click', 'draw-seg', e => { if (busy()) return; const p = e.features[0].properties;
-    new maplibregl.Popup().setLngLat(e.lngLat).setHTML(`第 ${p.i + 1} 段（50 m）<br>${POLS[S.pol].label} 推估 <b class="num">${p.v ?? '缺值'}</b>${unit(S.pol)}`).addTo(map); e.preventDefault(); });
-  map.on('click', 'dist-fill', e => { if (e.defaultPrevented || busy() || S.tab !== 'aq') return; distPopup(e.features[0].properties.idx, e.lngLat); });
-  map.on('click', 'grid-fill', e => { if (e.defaultPrevented || busy() || S.tab !== 'aq') return; gridPopup(e.features[0].properties, e.lngLat); e.preventDefault(); });
-  map.on('click', e => {
-    if (DR.active) { DR.pts.push([e.lngLat.lng, e.lngLat.lat]); drawUpdate(); return; }
-    if (R.pick) setPoint(R.pick, e.lngLat);
-  });
-  map.on('dblclick', e => { if (!DR.active) return; e.preventDefault();
-    while (DR.pts.length >= 2 && lineLen(DR.pts.slice(-2)) < 2) DR.pts.pop();   // 雙擊先觸發兩次 click：去掉重複尾點
-    drawStop(); hint('已完成。'); drawUpdate(); });
-  for (const l of ['st-circle', 'traffic-circle', 'dist-fill', 'grid-fill', 'draw-seg']) { map.on('mouseenter', l, () => { if (!busy()) map.getCanvas().style.cursor = 'pointer'; }); map.on('mouseleave', l, () => { if (!busy()) map.getCanvas().style.cursor = ''; }); }
+  map.on('click', 'seg-line', e => { if (busy()) return; const p = e.features[0].properties;
+    new maplibregl.Popup().setLngLat(e.lngLat).setHTML(`距起點 <b class="num">${(p.cum / 1000).toFixed(2)}</b> km<br>${pad2(S.hour)}:00 ${POLS[S.pol].label} 推估 <b class="num" style="font-size:15px">${p.v ?? '缺值'}</b>${unit(S.pol)}${S.pol === 'AQI' && p.v !== null ? `（${levelOf(p.v)}）` : ''}`).addTo(map); e.preventDefault(); });
+  map.on('click', 'dist-fill', e => { if (e.defaultPrevented || busy()) return; distPopup(e.features[0].properties.idx, e.lngLat); });
+  map.on('click', 'grid-fill', e => { if (e.defaultPrevented || busy()) return; gridPopup(e.features[0].properties, e.lngLat); e.preventDefault(); });
+  map.on('click', e => { if (DR.active) { DR.pts.push([e.lngLat.lng, e.lngLat.lat]); drawChanged(); return; } if (R.pick) setPoint(R.pick, e.lngLat); });
+  map.on('dblclick', e => { if (!DR.active) return; e.preventDefault(); while (DR.pts.length >= 2 && lineLen(DR.pts.slice(-2)) < 2) DR.pts.pop(); drawStop(); hint('已完成。拖動下方時間軸，看路線在不同時間的變化。'); drawChanged(true); });
+  for (const l of ['st-circle', 'traffic-circle', 'dist-fill', 'grid-fill', 'seg-line']) { map.on('mouseenter', l, () => { if (!busy()) map.getCanvas().style.cursor = 'pointer'; }); map.on('mouseleave', l, () => { if (!busy()) map.getCanvas().style.cursor = ''; }); }
   map.fitBounds([[121.457, 24.96], [121.666, 25.21]], { padding:padL(), duration:0 });
-  window.__ready = true; render();
+  window.__ready = true; applyLayers(); render();
 });
-document.getElementById('showTraffic').onchange = () => render();
-document.getElementById('showParks').onchange = e => map.setLayoutProperty('parks-fill', 'visibility', e.target.checked ? 'visible' : 'none');
-document.getElementById('showRoads').onchange = e => map.setLayoutProperty('roads-line', 'visibility', e.target.checked ? 'visible' : 'none');
+function applyLayers() { if (!window.__ready) return;
+  const vis = b => b ? 'visible' : 'none';
+  for (const l of ['dist-fill', 'dist-line', 'dist-line-nost']) map.setLayoutProperty(l, 'visibility', vis(LAYERS.dist));
+  map.setLayoutProperty('grid-fill', 'visibility', vis(LAYERS.grid));
+  for (const l of ['st-circle', 'st-label']) map.setLayoutProperty(l, 'visibility', vis(LAYERS.st));
+  for (const l of ['traffic-circle', 'traffic-label']) map.setLayoutProperty(l, 'visibility', vis(LAYERS.traffic));
+  map.setLayoutProperty('parks-fill', 'visibility', vis(LAYERS.parks)); map.setLayoutProperty('roads-line', 'visibility', vis(LAYERS.roads));
+  const op = ROUTE ? 0.15 : 0.4;   // 有路線時把城市色塊調淡，讓路線突出
+  map.setPaintProperty('dist-fill', 'fill-opacity', op); map.setPaintProperty('grid-fill', 'fill-opacity', ['case', ['get', 'far'], op / 2, op + 0.05]);
+}
 
-// ================= render =================
-let cur = {};
+// ===================================================================
+// render：時間、情境、指標、色彩任一項改變就呼叫（即時，不用按查詢）
+// ===================================================================
 function render() {
-  for (const id of ['pol', 'season', 'daytype', 'slot', 'view']) document.querySelectorAll('#' + id + ' button').forEach(b => b.classList.toggle('on', b.dataset.k === S[id]));
-  document.querySelectorAll('#major button').forEach(b => b.classList.toggle('on', b.dataset.k === R.major));
-  const sv = stationVals(S.pol, S.season, S.daytype, S.slot), gv = gridVals(S.pol, S.season, S.daytype, S.slot), dv = districtVals(gv);
-  cur = { sv, gv, dv };
-  window.__cur = { state:{ ...S }, station:sv.v, district:dv };
-  renderLegend(); renderInfo(); document.getElementById('rscard').innerHTML = roadsideCard();
-  if (!window.__ready) return;
-  sv.v.forEach((v, i) => map.setFeatureState({ source:'st', id:i }, { c:colorOf(v, S.pol) }));
-  dv.forEach((v, i) => map.setFeatureState({ source:'dist', id:i }, { c:colorOf(v, S.pol), sel: i === S.dist }));
-  gv.forEach((v, i) => map.setFeatureState({ source:'grid', id:i }, { c:colorOf(v, S.pol) }));
-  map.setLayoutProperty('grid-fill', 'visibility', S.view === 'grid' ? 'visible' : 'none');
-  const op = S.tab === 'aq' ? 0.5 : 0.08;
-  map.setPaintProperty('dist-fill', 'fill-opacity', S.view === 'grid' ? 0 : op);
-  const tv = document.getElementById('showTraffic').checked ? 'visible' : 'none';
-  for (const l of ['traffic-halo', 'traffic-circle', 'traffic-label']) map.setLayoutProperty(l, 'visibility', tv);
-  drawUpdate(); routeUpdate();
-}
-function renderLegend() {
-  const P = POLS[S.pol], b = P.bins;
-  const labs = [`&lt; ${b[0]}`, ...b.slice(0, -1).map((x, i) => `${x} – ${b[i+1]}`), `≥ ${b[b.length-1]}`];
-  const shown = S.pol === 'AQI' ? 7 : labs.length;   // AQI 只列到「對所有族群不健康」以下常見範圍＋說明
-  document.getElementById('legend').innerHTML = `<h3>${P.label}${P.unit ? '（' + P.unit + '）' : ''} <span class="tag">${SEASON_FULL[S.season]}・${DAYS[S.daytype]}・${SLOT_FULL[S.slot]}</span></h3>` +
-    labs.slice(0, shown).map((l, i) => `<div class="item"><span class="sw" style="background:${P.colors[i]}"></span><span class="num" style="font-weight:600">${l}</span>${S.pol === 'AQI' ? `<span class="note" style="margin:0">　${AQI_LEVELS[i]}</span>` : ''}</div>`).join('') +
-    `<div class="item"><span class="sw" style="background:${MISSING}"></span>缺值（有效小時不足）</div>` +
-    `<div class="note">${S.pol === 'AQI' ? '顏色採環境部 AQI 官方分級色（良好＝綠、普通＝黃、對敏感族群不健康＝橘…）；同一級內再以深淺區分平均值高低。' : '非官方分級，僅表示相對高低；級距固定，切換情境不重分。'}</div>` +
-    `<div class="item" style="margin-top:6px"><span class="sw" style="background:#fff;border:3px solid ${C.coral};border-radius:50%;width:16px;height:16px"></span>交通站（路邊，不參與內插）<span class="sw" style="background:#fff;border:3px solid #ccc;border-radius:50%;width:16px;height:16px;margin-left:8px"></span>一般站</div>`;
-  document.getElementById('estnote').innerHTML = `⚠ 行政區與網格是<b>推估</b>：9 個一般站反距離加權內插（IDW，次方 2，500 m 網格），行政區值＝區內網格平均。<b>北投、松山、萬華沒有測站</b>（紅色虛線框）。離最近一般站 &gt; 4 km 的網格（${farCount} 格）以半透明顯示。`;
-  const an = document.getElementById('aqinote'); an.hidden = S.pol !== 'AQI'; an.textContent = 'AQI 由 PM 與 O₃ 的移動平均算出，逐時起伏被平滑，時段差異小；想看車潮影響請切到 NO₂。';
-}
-function barChart(getter, opts = {}) {   // 5 時段 × 平日／假日
-  const W = 330, H = 110, pad = 26, keys = Object.keys(SLOTS);
-  const vals = []; for (const dk of Object.keys(DAYS)) for (const s of keys) vals.push(getter(dk, s));
-  const mx = Math.max(...vals.filter(v => v !== null)) * 1.12 || 1;
-  const bw = (W - pad) / keys.length;
-  let svg = `<svg width="100%" viewBox="0 0 ${W} ${H + 18}" role="img" aria-label="各時段平日與假日比較">`;
-  keys.forEach((s, j) => {
-    Object.keys(DAYS).forEach((dk, k) => {
-      const v = getter(dk, s), h = v === null ? 0 : Math.max(0, v) / mx * H, x = pad + j * bw + 5 + k * (bw / 2 - 4), w = bw / 2 - 6;
-      svg += `<rect x="${x}" y="${H - h}" width="${w}" height="${h}" rx="3" fill="${k ? C.sky : C.coral}" opacity="${s === S.slot && dk === S.daytype ? 1 : 0.75}"><title>${DAYS[dk]} ${SLOT_FULL[s]}：${fmt(v)}</title></rect>`;
-    });
-    svg += `<text x="${pad + j * bw + bw / 2}" y="${H + 14}" text-anchor="middle">${SLOT_SHORT[s]}</text>`;
-  });
-  svg += `<text x="0" y="10">${Math.round(mx)}</text><text x="0" y="${H}">0</text></svg>`;
-  return svg + `<div class="note"><span class="sw" style="background:${C.coral};width:10px;height:10px"></span> 平日　<span class="sw" style="background:${C.sky};width:10px;height:10px"></span> 假日</div>`;
-}
-function peakOff(getter, dk) {
-  const a = PEAK.map(s => getter(dk, s)), b = OFF.map(s => getter(dk, s));
-  if ([...a, ...b].some(v => v === null)) return null;
-  const pa = a.reduce((x, y) => x + y) / a.length, ob = b.reduce((x, y) => x + y) / b.length;
-  return { peak:pa, off:ob, pct:(pa - ob) / ob * 100 };
-}
-function po(getter, word = '高') {
-  return Object.entries(DAYS).map(([dk, dl]) => { const r = peakOff(getter, dk); if (!r) return '';
-    return `<div class="note">${dl}：尖峰平均 <b class="num">${fmt(r.peak)}</b>，離峰 <b class="num">${fmt(r.off)}</b>，尖峰${r.pct >= 0 ? word : '低'} <b class="num">${Math.abs(r.pct).toFixed(0)}%</b></div>`; }).join('');
-}
-function renderInfo() {
-  const el = document.getElementById('info');
-  if (S.dist < 0) {
-    const order = cur.dv.map((v, i) => [v, i]).filter(x => x[0] !== null).sort((a, b) => a[0] - b[0]);
-    const getter = (dk, s) => { const d = districtVals(gridVals(S.pol, S.season, dk, s)).filter(v => v !== null); return d.length ? d.reduce((x, y) => x + y) / d.length : null; };
-    el.innerHTML = `<h3>全市行政區（由好到差）</h3><div style="columns:2;font-size:13px">${order.map(([v, i], r) => `<div><span class="sw" style="background:${colorOf(v, S.pol)};width:10px;height:10px"></span> ${NAMES[i]} <b class="num">${fmt(v)}</b>${D.features[i].properties.has_station ? '' : '<span class="tag est">推估</span>'}</div>`).join('')}</div>` +
-      `<div class="lab" style="margin-top:10px">全市 12 區平均：各時段 平日 vs 假日</div>${barChart(getter)}${po(getter)}`;
-    return;
+  document.getElementById('hour').value = S.hour; document.getElementById('clock').textContent = pad2(S.hour) + ':00';
+  for (const id of ['daytype', 'season']) document.querySelectorAll('#' + id + ' button').forEach(b => b.classList.toggle('on', b.dataset.k === S[id]));
+  document.querySelectorAll('#cmode button').forEach(b => b.classList.toggle('on', b.dataset.k === S.color));
+  document.querySelectorAll('#mode button').forEach(b => b.classList.toggle('on', b.dataset.k === S.mode));
+  const mr = mapRange(S.pol), sv = stV(S.pol, S.hour), gv = gridAt(S.pol, S.hour), dv = distAt(gv);
+  window.__cur = { hour:S.hour, station:sv, district:dv };
+  if (window.__ready) {
+    sv.forEach((v, i) => map.setFeatureState({ source:'st', id:i }, { c:colorFor(v, mr) }));
+    dv.forEach((v, i) => map.setFeatureState({ source:'dist', id:i }, { c:colorFor(v, mr), sel: i === S.dist }));
+    gv.forEach((v, i) => map.setFeatureState({ source:'grid', id:i }, { c:colorFor(v, mr) }));
+    paintRoute();
   }
-  const f = D.features[S.dist].properties, getter = (dk, s) => districtVals(gridVals(S.pol, S.season, dk, s))[S.dist];
-  el.innerHTML = `<h3>${f.name}${f.has_station ? `<span class="tag">區內測站：${f.stations}</span>` : '<span class="tag est">無測站・全為推估</span>'}</h3>` +
-    `<div class="stat"><div><span class="num big" style="color:${C.coral}">${fmt(cur.dv[S.dist])}</span><small>${POLS[S.pol].label}${unit(S.pol)}（IDW 推估）</small></div>${S.pol === 'AQI' ? `<div><small>等級</small><b>${aqiLevel(cur.dv[S.dist])}</b></div>` : ''}</div>` +
-    `<div class="lab" style="margin-top:10px">各時段 平日 vs 假日（${SEASON_FULL[S.season]}）</div>${barChart(getter)}${po(getter)}`;
+  renderTimebar(); renderAdvice(); renderDetail(); renderCity();
 }
-function slotTable(getter) {
-  return `<table class="t"><tr><th></th>${Object.keys(SLOTS).map(s => `<th>${SLOT_SHORT[s]}</th>`).join('')}</tr>` +
-    Object.entries(DAYS).map(([dk, dl]) => `<tr><th>${dl}</th>${Object.keys(SLOTS).map(s => `<td class="num">${fmt(getter(dk, s))}</td>`).join('')}</tr>`).join('') + '</table>';
+function onScenario() { markStale(); render(); }
+
+function paintRoute() {   // 路線每一段依目前時間上色，並標出最差路段
+  if (!ROUTE) { map.getSource('seg').setData(EMPTY); map.getSource('worst').setData(EMPTY); return; }
+  const R0 = routeMatrix(ROUTE, S.pol); let worst = -1, wv = -Infinity;
+  const feats = ROUTE.segs.map((s, i) => { let v = R0.M[i * 24 + S.hour]; v = Number.isNaN(v) ? null : v; if (v !== null && v > wv) { wv = v; worst = i; }
+    return { type:'Feature', properties:{ i, cum:s.cum, c:colorFor(v, R0), v: v === null ? null : +v.toFixed(1) }, geometry:{ type:'LineString', coordinates:s.c } }; });
+  map.getSource('seg').setData({ type:'FeatureCollection', features:feats });
+  if (worst >= 0) { const s = ROUTE.segs[worst], mid = s.c[Math.floor(s.c.length / 2)];
+    map.getSource('worst').setData({ type:'FeatureCollection', features:[{ type:'Feature', properties:{ t:`最差 ${wv.toFixed(0)}` }, geometry:{ type:'Point', coordinates:mid } }] }); }
+  ROUTE.worst = worst >= 0 ? { i:worst, v:wv, km:(ROUTE.segs[worst].cum + ROUTE.segs[worst].L / 2) / 1000 } : null;
 }
-const rsGet = (dk, s) => RS.values[S.pol][S.season][dk][s].mean;
-function roadsideCard() {
-  const nb = RS.traffic.map(t => `${t.replace('站', '')}：${RS.neighbors[t].map(x => x.replace('站', '')).join('、')}`).join('；');
-  return `<h3>路邊加成 <span class="tag">交通站 − ${RS.near_km} km 內一般站</span></h3>` + barChart(rsGet) + po(rsGet, '加成大') + slotTable(rsGet) +
-    `<div class="note">${POLS[S.pol].label}，${SEASON_FULL[S.season]}，3 個交通站平均。配對：${nb}。同一小時相減後再平均。背景推估面不含這個加成。</div>`;
+
+// ---- 時間軸 ----
+function curveData() {
+  if (ROUTE) { const R0 = routeMatrix(ROUTE, S.pol); return { vals:[...Array(24).keys()].map(h => hourAvg(ROUTE, S.pol, h)), rg:R0, title:`這條路線的 24 小時平均 ${POLS[S.pol].label}`, best:bestStart(ROUTE, S.pol), dur:runMin(ROUTE) }; }
+  const mr = mapRange(S.pol); return { vals:mr.curve, rg:mr, title:`全市平均 ${POLS[S.pol].label}`, best:null, dur:0 };
 }
-function stationPopup(i, ll) {
-  const s = ST[i], get = (dk, sl) => stationVals(S.pol, S.season, dk, sl).v[i], n = cur.sv.n[i], ti = RS.traffic.indexOf(s.name);
-  let rsHtml = '';
-  if (ti >= 0) { const r = RS.values[S.pol][S.season][S.daytype][S.slot], v = r.per[ti];
-    rsHtml = `<div style="margin-top:4px">路邊加成（本站 − ${RS.neighbors[s.name].join('、')}平均）：<b class="num">${v === null ? '缺值' : (v >= 0 ? '+' : '') + fmt(v)}</b>${unit(S.pol)} <span class="note">${r.n[ti]} 個配對小時</span></div>`; }
-  new maplibregl.Popup({ maxWidth:'360px' }).setLngLat(ll).setHTML(
-    `<b>${s.name}</b>（${s.type}）<br><span class="note">${s.addr}</span><br>${POLS[S.pol].label}：<b class="num" style="font-size:16px">${fmt(cur.sv.v[i])}</b>${unit(S.pol)}　<span class="note">實測平均，${n} 個有效小時</span>${rsHtml}` +
-    `<div class="note">${SEASON_FULL[S.season]}，各時段平均：</div>${slotTable(get)}`).addTo(map);
+function renderTimebar() {
+  const svg = document.getElementById('curve'), W = svg.clientWidth || 800, H = 78, padX = 10, top = 14, bot = 6;
+  const { vals, rg, title, best, dur } = curveData();
+  document.getElementById('tbTitle').textContent = `${title}・${DAYS[S.daytype]}・${SEASON_FULL[S.season]}`;
+  const ok = vals.filter(v => v !== null), lo = Math.min(...ok), hi = Math.max(...ok), span = (hi - lo) || 1, yMin = Math.max(0, lo - span * 0.35), yMax = hi + span * 0.12;
+  const x = h => padX + h / 23 * (W - 2 * padX), y = v => top + (1 - (v - yMin) / (yMax - yMin)) * (H - top - bot), cw = (W - 2 * padX) / 23;
+  let s = `<defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#9aa1ab" stroke-width="2"/></pattern></defs>`;
+  if (best) { const x0 = x(best.t / 60), x1 = x(Math.min(23, (best.t + dur) / 60));
+    s += `<rect x="${x0 - cw * 0.45}" y="0" width="${Math.max(6, x1 - x0 + cw * 0.9)}" height="${H}" fill="rgba(34,168,97,.15)" stroke="${C.green}" stroke-width="1.5" rx="4"/>` +
+      `<text x="${Math.min(W - 150, x0 - cw * 0.45 + 3)}" y="11" style="fill:${C.green};font-weight:700;font-size:11px">最佳出發 ${hhmm(best.t)}（跑 ${Math.round(dur)} 分鐘）</text>`; }
+  vals.forEach((v, h) => { if (v === null) return; const bx = x(h) - cw * 0.42, by = y(v);
+    s += `<rect x="${bx}" y="${by}" width="${cw * 0.84}" height="${H - bot - by}" rx="3" fill="${colorFor(v, rg)}" stroke="rgba(0,0,0,.15)" stroke-width="0.6"><title>${pad2(h)}:00　${v.toFixed(1)}</title></rect>`;
+    if (lowSample(h)) s += `<rect x="${bx}" y="${by}" width="${cw * 0.84}" height="${H - bot - by}" fill="url(#hatch)" opacity=".6"><title>${pad2(h)}:00 資料較少</title></rect>`; });
+  s += `<path d="${vals.map((v, h) => v === null ? '' : `${h === 0 ? 'M' : 'L'}${x(h)},${y(v)}`).join('')}" fill="none" stroke="#2b313b" stroke-width="1.4" opacity=".7"/>`;
+  const cv = vals[S.hour];
+  s += `<line x1="${x(S.hour)}" x2="${x(S.hour)}" y1="0" y2="${H}" stroke="${C.coral}" stroke-width="2"/>` + (cv !== null ? `<circle cx="${x(S.hour)}" cy="${y(cv)}" r="4.5" fill="#fff" stroke="${C.coral}" stroke-width="2.5"/><text x="${Math.min(W - 36, x(S.hour) + 7)}" y="${Math.max(24, y(cv) - 6)}" style="fill:#1f2933;font-weight:700;font-size:12px">${cv.toFixed(1)}</text>` : '');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.innerHTML = s;
+  const lg = document.getElementById('legend'), rel = effMode() === 'relative';
+  document.getElementById('relWarn').hidden = !rel;
+  if (!rel) lg.innerHTML = `<b style="margin-right:4px">AQI 分級</b><span class="note" style="margin:0 8px 0 0">（環境部分級界線；藍＝好、紅＝差）</span>` + OFFICIAL.slice(0, 5).map(([t, c, l], i) => `<span class="c"><i style="background:${c}"></i>${i ? OFFICIAL[i - 1][0] + 1 : 0}–${t} ${l}</span>`).join('');
+  else { const r = rg, q = t => r.min + (r.max - r.min) * t;
+    lg.innerHTML = `<b style="margin-right:4px">${POLS[S.pol].label} 相對比較</b><span class="num" style="font-weight:600">${r.min.toFixed(1)}</span>` +
+      `<i style="display:inline-block;width:130px;height:10px;border-radius:5px;background:linear-gradient(90deg,${[0, .35, .68, 1].map(t => relColor(q(t), r)).join(',')})"></i>` +
+      `<span class="num" style="font-weight:600">${r.max.toFixed(1)}</span>${unit(S.pol)}<span class="note" style="margin:0 0 0 6px">（${ROUTE ? '這條路線' : '全市'}、${DAYS[S.daytype]}・${SEASON_FULL[S.season]} 24 小時的最好到最差）</span>` +
+      (S.color === 'official' && S.pol !== 'AQI' ? '<span class="note" style="margin:0 0 0 6px">官方分級只適用 AQI，其他指標以相對比較顯示</span>' : ''); }
 }
-function distPopup(i, ll) {
-  const f = D.features[i].properties;
-  new maplibregl.Popup().setLngLat(ll).setHTML(`<b>${f.name}</b><br>${POLS[S.pol].label}：<b class="num" style="font-size:16px">${fmt(cur.dv[i])}</b>${unit(S.pol)}<br><span class="note">IDW 推估（9 個一般站，區內網格平均）。${f.has_station ? '區內測站：' + f.stations : '區內沒有測站，全由鄰近測站推估'}</span>`).addTo(map);
-  S.dist = i; sel.value = i; render();
+document.getElementById('hour').addEventListener('input', e => { S.hour = +e.target.value; markStale(); render(); });
+document.getElementById('curve').addEventListener('click', e => { const r = e.currentTarget.getBoundingClientRect(), padX = 10;
+  S.hour = Math.max(0, Math.min(23, Math.round((e.clientX - r.left - padX) / (r.width - 2 * padX) * 23))); markStale(); render(); });
+let playT = null;
+document.getElementById('play').onclick = () => { const b = document.getElementById('play');
+  if (playT) { clearInterval(playT); playT = null; b.textContent = '▶'; return; }
+  if (S.hour >= 23) S.hour = 0; b.textContent = '❚❚'; render();
+  playT = setInterval(() => { if (S.hour >= 23) { clearInterval(playT); playT = null; b.textContent = '▶'; return; } S.hour++; markStale(); render(); }, 650); };
+addEventListener('resize', () => renderTimebar());
+
+// ---- 弧形儀表、一句話建議、重點數字 ----
+function arcPath(cx, cy, r, a0, a1) { const p = a => [cx + r * Math.cos(a * Math.PI / 180), cy + r * Math.sin(a * Math.PI / 180)], [x0, y0] = p(a0), [x1, y1] = p(a1);
+  return `M${x0.toFixed(2)},${y0.toFixed(2)} A${r},${r} 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${x1.toFixed(2)},${y1.toFixed(2)}`; }
+function renderGauge(v, label, sub, rg) {
+  const el = document.getElementById('gauge'); if (v === null || v === undefined) { el.innerHTML = ''; return; }
+  const A0 = 150, A1 = 390, isAQI = S.pol === 'AQI', lo = isAQI ? 0 : rg.min, hi = isAQI ? 150 : rg.max;
+  const t = Math.max(0, Math.min(1, (v - lo) / ((hi - lo) || 1))), av = A0 + (A1 - A0) * t, cx = 62, cy = 60, r = 48;
+  const dot = [cx + r * Math.cos(av * Math.PI / 180), cy + r * Math.sin(av * Math.PI / 180)];
+  el.innerHTML = `<svg width="124" height="104" viewBox="0 0 124 104" aria-label="${label} ${v.toFixed(0)}">
+      <defs><linearGradient id="gw" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#3f7fc8"/><stop offset=".45" stop-color="#9fc0e4"/><stop offset=".62" stop-color="#f0c4b0"/><stop offset="1" stop-color="#d9534f"/></linearGradient></defs>
+      <path d="${arcPath(cx, cy, r, A0, A1)}" stroke="#eef0f5" stroke-width="10" fill="none" stroke-linecap="round"/>
+      ${t > 0.005 ? `<path d="${arcPath(cx, cy, r, A0, av)}" stroke="url(#gw)" stroke-width="10" fill="none" stroke-linecap="round"/>` : ''}
+      <circle cx="${dot[0].toFixed(1)}" cy="${dot[1].toFixed(1)}" r="7" fill="#fff" stroke="${C.ink}" stroke-width="3"/>
+      <text x="${cx}" y="${cy + 8}" text-anchor="middle" style="font:500 34px Barlow;fill:${C.ink}">${v.toFixed(0)}</text>
+      <text x="${cx}" y="${cy + 26}" text-anchor="middle" style="font:600 10px 'Barlow Semi Condensed';letter-spacing:.14em;fill:#8a93a6">${label}</text>
+      <text x="14" y="100" style="font:600 9.5px Barlow;fill:#b0b7c6">${lo.toFixed(0)}</text><text x="110" y="100" text-anchor="end" style="font:600 9.5px Barlow;fill:#b0b7c6">${hi.toFixed(0)}</text>
+    </svg><div class="side">${sub}</div>`;
 }
-function gridPopup(p, ll) {
-  new maplibregl.Popup().setLngLat(ll).setHTML(`500 m 網格（${NAMES[p.d]}）<br>${POLS[S.pol].label}：<b class="num" style="font-size:16px">${fmt(cur.gv[p.i])}</b>${unit(S.pol)}<br><span class="note">IDW 推估；最近一般站 ${p.near_st}，距 ${(p.near_m / 1000).toFixed(1)} km${p.far ? '（遠離測站，可信度低）' : ''}</span>`).addTo(map);
+function levelChip(v) { if (S.pol !== 'AQI' || v === null) return ''; return `<span class="chip"><i style="background:${offColor(v)}"></i>${levelOf(v)}</span>`; }
+function renderAdvice() {
+  const adv = document.getElementById('advice'), k = document.getElementById('kpis'), pl = POLS[S.pol].label, now = S.hour * 60;
+  if (!ROUTE) { const mr = mapRange(S.pol), cv = mr.curve[S.hour]; let bh = 0; mr.curve.forEach((v, h) => { if (v < mr.curve[bh]) bh = h; });
+    renderGauge(cv, `CITY ${pl}`, `<div class="en">Taipei · ${pad2(S.hour)}:00</div><div style="margin:4px 0 6px;font-size:13px;color:var(--ink2)">全市平均（推估）</div>${levelChip(cv)}`, mr);
+    adv.innerHTML = `一天中最好的是 <b>${pad2(bh)}:00</b>（${fmt(mr.curve[bh])}）。<br><span class="note">${S.mode === 'draw' ? '按「開始畫線」畫出你的路線' : '設定起點和終點'}，看你的路線什麼時候跑最好。</span>`;
+    k.innerHTML = ''; return; }
+  const cur = runAvg(ROUTE, S.pol, now), best = bestStart(ROUTE, S.pol), dur = runMin(ROUTE), diff = cur - best.v, R0 = routeMatrix(ROUTE, S.pol);
+  const verdict = S.pol !== 'AQI' ? '' : cur <= 50 ? '空氣良好，適合跑步。' : cur <= 100 ? '空氣普通，可以跑；對空污敏感的人留意。' : cur <= 150 ? '對敏感族群不健康，敏感族群不建議。' : '空氣不健康，不建議跑步。';
+  renderGauge(cur, `ROUTE ${pl}`, `<div class="en">Start ${hhmm(now)}</div><div style="margin:4px 0 6px;font-size:13px;color:var(--ink2)">${hhmm(now)} 出發、全程平均</div>${levelChip(cur)}${verdict ? `<div class="note" style="margin-top:6px">${verdict}</div>` : ''}`, R0);
+  const same = Math.abs(best.t - now) <= 15 || diff < 1;   // 差不到 1 就不建議換時間
+  adv.innerHTML = (same ? `${hhmm(now)} 出發就是一天中最好的時段（全程平均 ${pl} <b>${cur.toFixed(0)}</b>）。`
+      : `建議改成 <b>${hhmm(best.t)}</b> 出發，空氣最好：全程平均 ${pl} <b>${best.v.toFixed(0)}</b>，比 ${hhmm(now)} 出發低 ${diff.toFixed(1)}。`) +
+    (ROUTE.worst ? `<br><span class="note">最差路段：距起點 ${ROUTE.worst.km.toFixed(1)} km 處，${pad2(S.hour)}:00 約 ${ROUTE.worst.v.toFixed(0)}（地圖紅圈）</span>` : '');
+  k.innerHTML = `<div class="kpi"><span class="en">Distance</span><span class="v num">${(ROUTE.L / 1000).toFixed(2)}</span><small>公里</small></div>` +
+    `<div class="kpi"><span class="en">Duration</span><span class="v num">${hmsDur(dur)}</span><small><input id="pace" type="number" min="2" max="15" step="0.1" value="${pace()}" aria-label="配速（分鐘／公里）"> 分/km</small></div>` +
+    `<div class="kpi"><span class="en">Best start</span><span class="v num" style="color:${C.ink}">${hhmm(best.t)}</span><small>建議出發</small></div>`;
+  document.getElementById('pace').onchange = e => { S.pace = +e.target.value || 6; render(); };
 }
-function padL() { return window.innerWidth > 700 ? { top:50, bottom:50, left:420, right:60 } : { top:40, bottom: window.innerHeight * 0.45, left:30, right:30 }; }
-function zoomToDist() {
-  if (!window.__ready) return;
+// ---- 詳細數據 ----
+function stats(m, startMin) {
+  const o = { km:m.L / 1000, aqi:runAvg(m, 'AQI', startMin), pm:runAvg(m, 'PM2.5', startMin), no2:runAvg(m, 'NO2', startMin) };
+  let near = 0, park = 0, sw = 0, swK = 0, comm = 0, river = 0, trees = 0; const parks = new Set();
+  for (const s of m.segs) { if (dMajOf(s.d1, s.d2) <= 50) near += s.L; if (s.park) park += s.L; if (s.sw !== undefined) { swK += s.L; if (s.sw) sw += s.L; }
+    if (s.comm) comm += s.L; if (s.river) river += s.L; if (s.pname) parks.add(s.pname); trees += s.trees || 0; }
+  return Object.assign(o, { nearPct:near / m.L * 100, parkPct:park / m.L * 100, swPct: swK ? sw / swK * 100 : null, commPct:comm / m.L * 100, riverPct:river / m.L * 100, parks:[...parks],
+    trees: m.kind === 'draw' ? (m.treeCount ?? (m.treeCount = treesNear(m.pts))) : trees });
+}
+function summaryText(s) { return [s.swPct !== null ? `${s.swPct.toFixed(0)}% 走人行道` : null, s.parks.length ? `經過 ${s.parks.length} 個公園` : '沒有經過公園',
+  s.riverPct >= 1 ? `${s.riverPct.toFixed(0)}% 在河濱` : null, s.commPct < 0.5 ? '完全避開商圈' : `${s.commPct.toFixed(0)}% 經過商圈`, s.nearPct < 0.5 ? '完全避開大車道' : `${s.nearPct.toFixed(0)}% 靠近大車道`].filter(Boolean).join('、'); }
+function renderDetail() {
+  const el = document.getElementById('detail'), now = S.hour * 60;
+  const polSeg = `<div class="lab">指標（地圖、路線、時間軸的顏色）</div><div class="seg small" id="polSeg">${Object.entries(POLS).map(([k, p]) => `<button data-k="${k}" class="${k === S.pol ? 'on' : ''}">${p.label}</button>`).join('')}</div>`;
+  const io = S.mode === 'draw' ? `<div class="btns">${ROUTE ? '<button class="btn ghost" id="drawExport">匯出 GeoJSON</button>' : ''}<label class="btn ghost" style="text-align:center">匯入 GeoJSON<input id="drawImport" type="file" accept=".geojson,.json,application/geo+json" hidden></label></div>` : '';
+  if (!ROUTE) { el.innerHTML = polSeg + '<div class="note">還沒有路線。畫一條路線或設定起終點後，這裡會顯示平均值、各路段數值與最短路線比較。</div>' + io; bindDetail(); return; }
+  const a = stats(ROUTE, now), b = SHORT ? stats(SHORT, now) : null;
+  const row = (lab, f) => `<tr><th>${lab}</th><td class="num" style="color:${C.coral}">${f(a)}</td>${b ? `<td class="num" style="color:${C.grey}">${f(b)}</td>` : ''}</tr>`;
+  const R0 = routeMatrix(ROUTE, S.pol), n = ROUTE.segs.length, vals = ROUTE.segs.map((s, i) => ({ i, km:(s.cum + s.L / 2) / 1000, v:R0.M[i * 24 + S.hour] }));
+  const W = 300, Hh = 46, vmin = Math.min(...vals.map(v => v.v)), vmax = Math.max(...vals.map(v => v.v)), sp = (vmax - vmin) || 1;
+  const strip = `<svg width="100%" viewBox="0 0 ${W} ${Hh + 14}">${vals.map(o => { const x0 = ROUTE.segs[o.i].cum / ROUTE.L * W, w = ROUTE.segs[o.i].L / ROUTE.L * W, h = 6 + (o.v - vmin) / sp * (Hh - 6);
+    return `<rect x="${x0}" y="${Hh - h}" width="${Math.max(0.8, w - 0.4)}" height="${h}" fill="${colorFor(o.v, R0)}"><title>${o.km.toFixed(2)} km：${o.v.toFixed(1)}</title></rect>`; }).join('')}<text x="0" y="${Hh + 12}">起點</text><text x="${W}" y="${Hh + 12}" text-anchor="end">終點 ${(ROUTE.L / 1000).toFixed(1)} km</text></svg>`;
+  const top3 = [...vals].sort((x, y) => y.v - x.v).slice(0, 3);
+  el.innerHTML = polSeg + `<div class="lab">${hhmm(now)} 出發、跑完全程的平均（推估）</div>` +
+    `<table class="t"><tr><th></th><th style="color:${C.coral}">${ROUTE.kind === 'plan' ? '━ 建議' : '你的路線'}</th>${b ? `<th style="color:${C.grey}">┅ 最短</th>` : ''}</tr>` +
+    row('距離 km', s => s.km.toFixed(2)) + row('平均 AQI', s => s.aqi.toFixed(1)) + row('平均 PM2.5 μg/m³', s => s.pm.toFixed(1)) + row('平均 NO₂ ppb', s => s.no2.toFixed(1)) +
+    row('🚗 大車道 50 m 內', s => s.nearPct.toFixed(0) + '%') + (ROUTE.kind === 'plan' ? row('🛍️ 商圈路段', s => s.commPct.toFixed(0) + '%') + row('🚶 人行道', s => s.swPct.toFixed(0) + '%') + row('🌊 河濱', s => s.riverPct.toFixed(0) + '%') : '') +
+    row('🌿 經過公園', s => s.parks.length + ' 個（' + s.parkPct.toFixed(0) + '%）') + row('🌳 20 m 內樹木', s => '約 ' + s.trees.toLocaleString() + ' 棵') + '</table>' +
+    (b ? `<div class="note"><b style="color:${C.coral}">建議</b>：${summaryText(a)}<br><b style="color:${C.grey}">最短</b>：${summaryText(b)}<br>建議路線是最短的 ${(a.km / b.km).toFixed(2)} 倍${ROUTE.lam < 1 ? `；為符合長度上限，偏好強度調降為 ${(ROUTE.lam * 100).toFixed(0)}%` : ''}。</div>` : `<div class="note">${summaryText(a)}</div>`) +
+    `<div class="lab">各路段 ${pad2(S.hour)}:00 的 ${POLS[S.pol].label}（${ROUTE.kind === 'draw' ? '每 50 m 一段' : '每段路'}）</div>${strip}` +
+    `<div class="note">最高的三段：${top3.map(o => `${o.km.toFixed(2)} km（${o.v.toFixed(1)}）`).join('、')}</div>` + io +
+    `<div class="note">推估＝9 個一般站 IDW${R.rsOn ? ' ＋ 大馬路旁的路邊加成' : '（未加路邊加成）'}，不是實測。</div>`;
+  bindDetail();
+}
+function bindDetail() {
+  document.querySelectorAll('#polSeg button').forEach(b => b.onclick = () => { S.pol = b.dataset.k; markStale(); render(); });
+  const ex = document.getElementById('drawExport'); if (ex) ex.onclick = exportGeoJSON;
+  const im = document.getElementById('drawImport'); if (im) im.onchange = e => { const f = e.target.files[0]; if (!f) return; f.text().then(t => { try { importGeoJSON(JSON.parse(t)); } catch (err) { hint('匯入失敗：' + err.message); } }); e.target.value = ''; };
+}
+
+// ---- 城市空品圖層 ----
+function renderCity() {
+  const el = document.getElementById('city');
+  const sw = (k, l) => `<label class="switch"><input type="checkbox" data-l="${k}" ${LAYERS[k] ? 'checked' : ''}>${l}</label>`;
+  const series = dk => { const save = S.daytype; S.daytype = dk; const out = []; for (let h = 0; h < 24; h++) { const dv = distAt(gridAt(S.pol, h));
+    if (S.dist >= 0) out.push(dv[S.dist]); else { const ok = dv.filter(v => v !== null); out.push(ok.reduce((a, b) => a + b, 0) / ok.length); } } S.daytype = save; return out; };
+  const curves = Object.keys(DAYS).map(series), all = curves.flat(), lo = Math.min(...all), hi = Math.max(...all), W = 300, Hh = 80;
+  const y = v => 6 + (1 - (v - lo) / ((hi - lo) || 1)) * (Hh - 10), x = h => h / 23 * W;
+  const chart = `<svg width="100%" viewBox="0 -4 ${W} ${Hh + 20}">${curves.map((c, k) => `<path d="${c.map((v, h) => `${h ? 'L' : 'M'}${x(h)},${y(v)}`).join('')}" fill="none" stroke="${k ? C.sky : C.coral}" stroke-width="2"/>`).join('')}` +
+    `<line x1="${x(S.hour)}" x2="${x(S.hour)}" y1="0" y2="${Hh}" stroke="#999" stroke-dasharray="3 3"/>${[0, 6, 12, 18, 23].map(h => `<text x="${x(h)}" y="${Hh + 14}" text-anchor="middle">${h}</text>`).join('')}<text x="${W}" y="6" text-anchor="end">${hi.toFixed(0)}</text><text x="${W}" y="${Hh}" text-anchor="end">${lo.toFixed(0)}</text></svg>`;
+  const peak = k => { const c = curves[k], p = PEAK_H.reduce((a, h) => a + c[h], 0) / PEAK_H.length, o = OFF_H.reduce((a, h) => a + c[h], 0) / OFF_H.length; return (p - o) / o * 100; };
+  el.innerHTML = `<div class="lab">圖層</div>${sw('dist', '各行政區色塊（推估）')}${sw('grid', '500 m 網格（推估）')}${sw('st', '一般測站（實測）')}${sw('traffic', '交通站（路邊，不參與推估）')}${sw('parks', '公園')}${sw('roads', '幹道（OSM）')}` +
+    `<div class="lab">行政區</div><select id="distSel"><option value="-1">全市平均</option>${NAMES.map((n, i) => `<option value="${i}" ${i === S.dist ? 'selected' : ''}>${n}${D.features[i].properties.has_station ? '' : '（無測站，推估）'}</option>`).join('')}</select>` +
+    `<div class="lab">${S.dist >= 0 ? NAMES[S.dist] : '全市'} 24 小時 ${POLS[S.pol].label}（<span style="color:${C.coral}">━ 平日</span>　<span style="color:${C.sky}">━ 假日</span>，${SEASON_FULL[S.season]}）</div>${chart}` +
+    `<div class="note">尖峰（7–9、17–19 時）比離峰（5–7、11–13、19–22 時）：平日${peak(0) >= 0 ? '高' : '低'} ${Math.abs(peak(0)).toFixed(0)}%、假日${peak(1) >= 0 ? '高' : '低'} ${Math.abs(peak(1)).toFixed(0)}%</div>` +
+    `<div class="note">行政區與網格是推估（9 個一般站 IDW）；北投、松山、萬華沒有測站（紅色虛線框）。</div>`;
+  el.querySelectorAll('input[data-l]').forEach(i => i.onchange = () => { LAYERS[i.dataset.l] = i.checked; store.set('layers', LAYERS); applyLayers(); });
+  el.querySelector('#distSel').onchange = e => { S.dist = +e.target.value; zoomToDist(); render(); };
+}
+function zoomToDist() { if (!window.__ready) return;
   if (S.dist < 0) { map.fitBounds([[121.457, 24.96], [121.666, 25.21]], { padding:padL() }); return; }
   const cs = D.features[S.dist].geometry.coordinates.flat(1); let b = [180, 90, -180, -90];
   for (const [x, y] of cs) b = [Math.min(b[0], x), Math.min(b[1], y), Math.max(b[2], x), Math.max(b[3], y)];
-  map.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding:padL(), maxZoom:13.5 });
+  map.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding:padL(), maxZoom:13.5 }); }
+
+// ---- 進階偏好與設定 ----
+const LV = ['', '很低', '低', '中', '高', '很高'];
+function renderAdv() {
+  const el = document.getElementById('adv');
+  el.innerHTML = `<div class="lab">偏好強度（規劃路線用；打勾才啟用）</div>` +
+    Object.entries(PREFS).map(([k, p]) => `<div class="pref"><span>${p.ico}</span><span>${p.l}</span><input type="checkbox" data-on="${k}" ${p.on ? 'checked' : ''} aria-label="啟用${p.l}" style="accent-color:var(--coral);width:17px;height:17px"><input type="range" min="1" max="5" step="1" value="${p.w}" data-w="${k}" aria-label="${p.l}強度"><span class="note" style="margin:0">${LV[p.w]}</span></div>`).join('') +
+    `<div class="note" style="color:var(--ink)">建議路線最多比最短路線長 <input id="maxRatio" type="number" value="${R.maxRatio}" min="1" max="3" step="0.05" style="width:62px"> 倍</div>` +
+    `<label class="switch" style="margin-top:10px"><input type="checkbox" id="rsOn" ${R.rsOn ? 'checked' : ''}><b>把大馬路旁多出來的污染算進去</b>（建議開啟）</label>` +
+    `<div class="note">靠近大馬路時，空氣通常比附近的測站差。開啟後，離大馬路越近的路段數值越高（做法見「資料說明」）。</div>` +
+    (window.OSM_COV ? `<div class="warn">OSM 標記不完整：人行道標記只涵蓋車行道路的 ${OSM_COV.sidewalk_pct}%；臺北市內商店點 ${OSM_COV.shops_in_taipei.toLocaleString()} 個，各區密度差 ${OSM_COV.shop_density_ratio} 倍。「偏好人行道」「避開商圈」會低估沒被標記的地方。</div>` : '');
+  el.querySelectorAll('[data-on]').forEach(i => i.onchange = () => { PREFS[i.dataset.on].on = i.checked; renderPrefToggles(); renderAdv(); markStale('偏好已改變'); });
+  el.querySelectorAll('[data-w]').forEach(i => i.oninput = () => { PREFS[i.dataset.w].w = +i.value; i.nextElementSibling.textContent = LV[+i.value]; markStale('偏好已改變'); });
+  el.querySelector('#maxRatio').onchange = e => { R.maxRatio = Math.max(1, +e.target.value || 1.3); markStale('長度上限已改變'); };
+  el.querySelector('#rsOn').onchange = e => { R.rsOn = e.target.checked; markStale('路邊污染設定已改變'); render(); };
 }
 
-// ================= 共用：路邊加成距離係數、空間工具 =================
-function rsF(d) { const full = +document.getElementById('rsFull').value || 0, zero = Math.max(+document.getElementById('rsZero').value || 0, full + 1); return d <= full ? 1 : d >= zero ? 0 : (zero - d) / (zero - full); }
-function segDist(px, py, ax, ay, bx, by, kx) {
-  const X = (px - ax) * kx, Y = (py - ay) * KY, Bx = (bx - ax) * kx, By = (by - ay) * KY, L = Bx * Bx + By * By;
+// ---- 資料說明 ----
+function renderAbout() {
+  const nmin = {}; for (const se of Object.keys(SEASONS)) for (const dk of Object.keys(DAYS)) { let m = Infinity; for (let h = 0; h < 24; h++) AQH.AQI[se][dk].n[h].forEach((n, i) => { if (USE[i]) m = Math.min(m, n); }); nmin[se + dk] = m; }
+  const rs = RSH.values.NO2.all.weekday.mean;
+  document.getElementById('about').innerHTML =
+    `<p class="note" style="color:var(--ink)"><b>空品</b>：臺北市政府環境保護局 12 個自動測站逐時資料（${AQ_META.period}，${AQ_META.rows.toLocaleString()} 筆）。每個「季節 × 平日／假日 × 小時」取所有有效小時的平均；「-」與 AQI=0 視為缺測。日子：${AQ_META.holiday_note}。開啟時預設為臺北現在的時刻，週六日視為假日。</p>` +
+    `<table class="t"><tr><th>單格最少樣本數（一般站）</th>${Object.values(DAYS).map(d => `<th>${d}</th>`).join('')}</tr>${Object.entries(SEASONS).map(([se, l]) => `<tr><th>${l}</th>${Object.keys(DAYS).map(dk => `<td class="num">${nmin[se + dk]}</td>`).join('')}</tr>`).join('')}</table>` +
+    `<p class="note">樣本少於 ${AQ_META.min_n} 筆的時段會在時間軸上畫斜線；目前 17,280 格中有 ${AQ_META.low_cells} 格。</p>` +
+    `<p class="note" style="color:var(--ink)"><b>推估方法</b>：路線每一段（自己畫的路線每 50 m 一段）取中點，用 9 個一般站做反距離加權內插（IDW，次方 2），再加「路邊加成」×距離係數。路邊加成＝3 個交通站減去各自 3 km 內一般站，同一小時配對相減後依小時平均（NO₂ 全年平日：凌晨 4 時 +${rs[4]}、上午 9 時 +${rs[9]}、下午 5 時 +${rs[17]} ppb）。距離係數：離大馬路（OSM 快速、主要、次要道路）50 m 內全額，到 150 m 線性遞減為 0；這兩個距離是假設值。可在「進階偏好與設定」關閉路邊加成。</p>` +
+    `<p class="note" style="color:var(--ink)"><b>最佳出發時段</b>：每 15 分鐘試一個出發時間，依配速算出跑到每一段的時刻，用那個小時的推估值，取全程長度加權平均最低者。</p>` +
+    `<p class="note" style="color:var(--ink)"><b>色彩</b>：官方標準＝依環境部 AQI 分級界線（0–50 良好、51–100 普通、101–150 對敏感族群不健康、151–200 對所有族群不健康、201–300 非常不健康），用藍（好）到紅（差）的色階表示；相對比較＝目前情境 24 小時內最好到最差的連續漸層，不代表健康分級。官方分級只適用 AQI。</p>` +
+    `<p class="note" style="color:var(--ink)"><b>其他資料</b>：行道樹、公園樹、公園基本資料（臺北市資料大平臺，政府資料開放授權條款第 1 版）；路網、幹道、公園面、商店、商業區 © OpenStreetMap contributors（ODbL）；底圖 © OpenFreeMap © OpenMapTiles。</p>` +
+    `<p class="note" style="color:var(--ink)"><b>限制</b>：一年平均值，不是即時或預報；沒有氣象資料（466920 缺少）與歷史車流；路邊加成只來自 3 個大型路口；OSM 人行道與商店標記不完整；樹蔭以樹木數量代理。詳見 README 與 QA。</p>`;
+}
+
+// ===================================================================
+// 模式切換
+// ===================================================================
+function hint(t) { document.getElementById('hint').textContent = t; }
+function setMode(m) {
+  S.mode = m; DR.active = false; R.pick = null; if (window.__ready) { map.getCanvas().style.cursor = ''; map.doubleClickZoom.enable(); }
+  document.getElementById('drawCtl').hidden = m !== 'draw'; document.getElementById('planCtl').hidden = m !== 'plan';
+  ROUTE = null; SHORT = null; clearMapRoute();
+  if (m === 'draw') { hint('按「開始畫線」後在地圖上逐點點擊，雙擊或按「完成」結束。'); if (DR.pts.length >= 2) { drawChanged(true); return; } }
+  else { hint('按「① 設起點」再點地圖，接著「② 設終點」。'); loadNet(); if (NET && R.start !== null && R.end !== null) { showPts(); planRoute(); return; } showPts(); }
+  applyLayers(); render();
+}
+function clearMapRoute() { if (!window.__ready) return; for (const s of ['seg', 'short', 'draw', 'pts', 'worst']) map.getSource(s).setData(EMPTY); }
+function fitRoute() { if (!ROUTE || !window.__ready) return; let b = [180, 90, -180, -90]; ROUTE.segs.forEach(s => s.c.forEach(([x, y]) => { b = [Math.min(b[0], x), Math.min(b[1], y), Math.max(b[2], x), Math.max(b[3], y)]; }));
+  map.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding:padL(), maxZoom:16 }); }
+
+// ===================================================================
+// 自己畫路線
+// ===================================================================
+const DR = { active:false, pts:[] };
+function lineLen(pts) { let L = 0; for (let i = 1; i < pts.length; i++) L += Math.hypot((pts[i][0] - pts[i-1][0]) * kxAt(pts[i][1]), (pts[i][1] - pts[i-1][1]) * KY); return L; }
+function pieces(pts, step = 50) { const out = []; let cur = [pts[0]], acc = 0;
+  for (let i = 1; i < pts.length; i++) { let a = pts[i-1]; const b = pts[i]; let segL = Math.hypot((b[0] - a[0]) * kxAt(b[1]), (b[1] - a[1]) * KY);
+    while (acc + segL >= step && segL > 0) { const t = (step - acc) / segL, m = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]; cur.push(m); out.push({ c:cur, L:step }); cur = [m]; segL -= (step - acc); a = m; acc = 0; }
+    acc += segL; cur.push(b); }
+  if (acc > 0.5) out.push({ c:cur, L:acc }); return out; }
+function midOf(c) { const L = lineLen(c) / 2; let acc = 0;
+  for (let i = 1; i < c.length; i++) { const l = Math.hypot((c[i][0] - c[i-1][0]) * kxAt(c[i][1]), (c[i][1] - c[i-1][1]) * KY);
+    if (acc + l >= L) { const t = l ? (L - acc) / l : 0; return [c[i-1][0] + (c[i][0] - c[i-1][0]) * t, c[i-1][1] + (c[i][1] - c[i-1][1]) * t]; } acc += l; }
+  return c[c.length - 1]; }
+function segDist(px, py, ax, ay, bx, by, kx) { const X = (px - ax) * kx, Y = (py - ay) * KY, Bx = (bx - ax) * kx, By = (by - ay) * KY, L = Bx * Bx + By * By;
   const t = L ? Math.max(0, Math.min(1, (X * Bx + Y * By) / L)) : 0; return Math.hypot(X - t * Bx, Y - t * By); }
 function roadDist(lon, lat) { const kx = kxAt(lat), m = 0.012, d = [999, 999];
   for (const r of RD) { if (lon < r.b[0] - m || lon > r.b[2] + m || lat < r.b[1] - m || lat > r.b[3] + m) continue;
     for (let i = 1; i < r.p.length; i++) { const v = segDist(lon, lat, r.p[i-1][0], r.p[i-1][1], r.p[i][0], r.p[i][1], kx); if (v < d[r.c - 1]) d[r.c - 1] = v; } }
   return d; }
 function inRing(x, y, r) { let c = false; for (let i = 0, j = r.length - 1; i < r.length; j = i++) { if ((r[i][1] > y) !== (r[j][1] > y) && x < (r[j][0] - r[i][0]) * (y - r[i][1]) / (r[j][1] - r[i][1]) + r[i][0]) c = !c; } return c; }
-function parkAt(lon, lat) {
-  for (const p of PP) if (lon >= p.b[0] && lon <= p.b[2] && lat >= p.b[1] && lat <= p.b[3] && inRing(lon, lat, p.r)) return p.n || 'OSM 公園';
-  const kx = kxAt(lat); for (const c of PC) if (Math.hypot((lon - c[0]) * kx, (lat - c[1]) * KY) <= c[2]) return c[3];
-  return null; }
-function lineLen(pts) { let L = 0; for (let i = 1; i < pts.length; i++) L += Math.hypot((pts[i][0] - pts[i-1][0]) * kxAt(pts[i][1]), (pts[i][1] - pts[i-1][1]) * KY); return L; }
-function hms(min) { const s = Math.round(min * 60), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), ss = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(ss).padStart(2, '0'); }
-function slotBars(bySlot, pol) {   // 單一路線 5 時段長條，標最好／最差
-  const vals = Object.entries(bySlot).filter(([, v]) => v !== null);
-  const best = vals.reduce((a, b) => b[1] < a[1] ? b : a), worst = vals.reduce((a, b) => b[1] > a[1] ? b : a);
-  const W = 330, H = 92, keys = Object.keys(SLOTS), mx = Math.max(...vals.map(v => v[1])) * 1.06, mn = Math.min(...vals.map(v => v[1])) * 0.85, bw = W / keys.length;
-  let svg = `<svg width="100%" viewBox="0 0 ${W} ${H + 32}" role="img" aria-label="這條路線各時段的平均">`;
-  keys.forEach((k, j) => { const v = bySlot[k], h = v === null ? 0 : (v - mn) / (mx - mn) * H, x = j * bw + 7;
-    const col = k === best[0] ? C.green : k === worst[0] ? '#e5484d' : '#c9ced6';
-    svg += `<rect x="${x}" y="${H - h}" width="${bw - 14}" height="${h}" rx="4" fill="${col}" ${k === S.slot ? `stroke="${C.coral}" stroke-width="2.5"` : ''}></rect>` +
-      `<text x="${x + (bw - 14) / 2}" y="${H - h - 4}" text-anchor="middle" style="fill:#1f2933;font-weight:700;font-size:12px">${v === null ? '缺' : v.toFixed(1)}</text>` +
-      `<text x="${x + (bw - 14) / 2}" y="${H + 14}" text-anchor="middle">${SLOT_SHORT[k]}${k === best[0] ? ' ★' : k === worst[0] ? ' ▼' : ''}</text>`; });
-  svg += `<text x="0" y="${H + 29}">縱軸從 ${mn.toFixed(1)} 起算（放大差異）</text></svg>`;
-  return { svg, best, worst };
-}
-
-// ================= 階段一：畫自己的路線 =================
-const DR = { active:false, pts:[] };
-function pieces(pts, step = 50) {
-  const out = []; let cur = [pts[0]], acc = 0;
-  for (let i = 1; i < pts.length; i++) {
-    let a = pts[i-1]; const b = pts[i]; let segL = Math.hypot((b[0] - a[0]) * kxAt(b[1]), (b[1] - a[1]) * KY);
-    while (acc + segL >= step && segL > 0) { const t = (step - acc) / segL, m = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
-      cur.push(m); out.push({ c:cur, L:step }); cur = [m]; segL -= (step - acc); a = m; acc = 0; }
-    acc += segL; cur.push(b);
-  }
-  if (acc > 0.5) out.push({ c:cur, L:acc });
-  return out; }
-function midOf(c) { const L = lineLen(c) / 2; let acc = 0;
-  for (let i = 1; i < c.length; i++) { const l = Math.hypot((c[i][0] - c[i-1][0]) * kxAt(c[i][1]), (c[i][1] - c[i-1][1]) * KY);
-    if (acc + l >= L) { const t = l ? (L - acc) / l : 0; return [c[i-1][0] + (c[i][0] - c[i-1][0]) * t, c[i-1][1] + (c[i][1] - c[i-1][1]) * t]; } acc += l; }
-  return c[c.length - 1]; }
-function treesNear(pts, R_m = 20) {
-  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]), pad = 0.0004, CS = TR.CS, seen = new Set();
+function parkAt(lon, lat) { for (const p of PP) if (lon >= p.b[0] && lon <= p.b[2] && lat >= p.b[1] && lat <= p.b[3] && inRing(lon, lat, p.r)) return p.n || 'OSM 公園';
+  const kx = kxAt(lat); for (const c of PC) if (Math.hypot((lon - c[0]) * kx, (lat - c[1]) * KY) <= c[2]) return c[3]; return null; }
+function treesNear(pts, R_m = 20) { const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]), pad = 0.0004, CS = TR.CS, seen = new Set();
   for (let cx = Math.floor((Math.min(...xs) - pad) / CS); cx <= Math.floor((Math.max(...xs) + pad) / CS); cx++)
     for (let cy = Math.floor((Math.min(...ys) - pad) / CS); cy <= Math.floor((Math.max(...ys) + pad) / CS); cy++) {
       const arr = TR.cell.get(cx * 100000 + cy); if (!arr) continue;
-      for (const i of arr) { const kx = kxAt(TR.lat[i]); for (let k = 1; k < pts.length; k++) if (segDist(TR.lon[i], TR.lat[i], pts[k-1][0], pts[k-1][1], pts[k][0], pts[k][1], kx) <= R_m) { seen.add(i); break; } }
-    }
+      for (const i of arr) { const kx = kxAt(TR.lat[i]); for (let k = 1; k < pts.length; k++) if (segDist(TR.lon[i], TR.lat[i], pts[k-1][0], pts[k-1][1], pts[k][0], pts[k][1], kx) <= R_m) { seen.add(i); break; } } }
   return seen.size; }
-function airAt(pol, se, dt, sl, s) {
-  const v = idw(s.dSt, stationVals(pol, se, dt, sl).v); if (v === null) return null;
-  return v + (RS.values[pol][se][dt][sl].mean || 0) * rsF(s.dMaj); }
-function analyse(ptsIn) {
-  const P = pieces(ptsIn);
-  const S1 = P.map(p => { const [x, y] = midOf(p.c), kx = kxAt(y), rd = roadDist(x, y);
-    return { ...p, x, y, dSt: ST.map(s => Math.hypot((x - s.lon) * kx, (y - s.lat) * KY)), d1:rd[0], d2:rd[1], park: parkAt(x, y) }; });
-  S1.forEach(s => s.dMaj = R.major === 'primary' ? s.d1 : Math.min(s.d1, s.d2));
-  const L = S1.reduce((a, s) => a + s.L, 0);
-  const avg = (pol, sl) => { let a = 0, w = 0; for (const s of S1) { const v = airAt(pol, S.season, S.daytype, sl, s); if (v !== null) { a += v * s.L; w += s.L; } } return w ? a / w : null; };
-  const now = { AQI: avg('AQI', S.slot), 'PM2.5': avg('PM2.5', S.slot), NO2: avg('NO2', S.slot), O3: avg('O3', S.slot) };
-  const bySlot = {}; for (const sl of Object.keys(SLOTS)) bySlot[sl] = avg(S.pol, sl);
-  S1.forEach(s => s.v = airAt(S.pol, S.season, S.daytype, S.slot, s));
-  const parkL = S1.filter(s => s.park).reduce((a, s) => a + s.L, 0), nearL = S1.filter(s => s.dMaj <= 50).reduce((a, s) => a + s.L, 0);
-  return { L, n:S1.length, now, bySlot, segs:S1, trees: treesNear(ptsIn), parkPct: parkL / L * 100, nearPct: nearL / L * 100, parkNames:[...new Set(S1.map(s => s.park).filter(Boolean))] };
+function drawModel(pts) {
+  const segs = pieces(pts).map(p => { const [x, y] = midOf(p.c), kx = kxAt(y), rd = roadDist(x, y), pk = parkAt(x, y);
+    return { c:p.c, L:p.L, dSt: ST.map(s => Math.hypot((x - s.lon) * kx, (y - s.lat) * KY)), d1:rd[0], d2:rd[1], park:!!pk, pname:pk }; });
+  return makeModel('draw', segs, { pts: pts.slice() });
 }
-function hint(t) { document.getElementById('drawHint').textContent = t; }
-function drawStop() { DR.active = false; map.doubleClickZoom.enable(); map.getCanvas().style.cursor = ''; document.getElementById('drawStart').classList.remove('on'); }
-function drawUpdate() {
-  if (!window.__ready || !map.getSource('draw')) return;
+function drawChanged(fit) {
   const pts = DR.pts;
-  map.getSource('draw').setData({ type:'FeatureCollection', features:[
-    ...(pts.length >= 2 ? [{ type:'Feature', properties:{ k:'line' }, geometry:{ type:'LineString', coordinates:pts } }] : []),
+  if (window.__ready) map.getSource('draw').setData({ type:'FeatureCollection', features:[
+    ...(pts.length >= 2 && DR.active ? [{ type:'Feature', properties:{ k:'line' }, geometry:{ type:'LineString', coordinates:pts } }] : []),
     ...pts.map((p, i) => ({ type:'Feature', properties:{ k: i === 0 ? 'start' : 'v' }, geometry:{ type:'Point', coordinates:p } })) ] });
-  const out = document.getElementById('drawOut');
-  if (pts.length < 2) { map.getSource('drawSeg').setData({ type:'FeatureCollection', features:[] }); out.innerHTML = ''; window.__draw = null; return; }
-  const t0 = performance.now(), r = analyse(pts);
-  map.getSource('drawSeg').setData({ type:'FeatureCollection', features: r.segs.map((s, i) => ({ type:'Feature', properties:{ i, c: colorOf(s.v, S.pol), v: s.v === null ? null : +s.v.toFixed(1) }, geometry:{ type:'LineString', coordinates:s.c } })) });
-  const pace = +document.getElementById('pace').value || 6, pl = POLS[S.pol].label;
-  const closed = pts.length > 2 && Math.hypot((pts[0][0] - pts.at(-1)[0]) * kxAt(pts[0][1]), (pts[0][1] - pts.at(-1)[1]) * KY) < 30;
-  const { svg, best, worst } = slotBars(r.bySlot, S.pol);
-  out.innerHTML = `<div class="card"><div class="stat"><div><span class="num big" style="color:${C.coral}">${(r.L / 1000).toFixed(2)}</span><small>公里${closed ? '・環狀' : ''}</small></div>` +
-    `<div><span class="num big">${hms(r.L / 1000 * pace)}</span><small>預估時間（${pace} 分/km）</small></div><div><span class="num big" style="color:${colorOf(r.now.AQI, 'AQI') === '#ffff00' ? '#b8a200' : '#1f2933'}">${fmt(r.now.AQI)}</span><small>平均 AQI（推估）</small></div></div>` +
-    `<table class="t"><tr><th>${SEASON_FULL[S.season]}・${DAYS[S.daytype]}・${SLOT_FULL[S.slot]}</th><th>路線平均（推估）</th></tr>` +
-    [['AQI', ''], ['PM2.5', ''], ['NO2', '']].map(([p]) => `<tr><th>${POLS[p].label}</th><td class="num">${fmt(r.now[p])}<span style="font:400 11px 'Noto Sans TC'">${unit(p)}</span></td></tr>`).join('') +
-    `<tr><th>🌳 兩側 20 m 內樹木</th><td><b class="num">${r.trees.toLocaleString()}</b> 棵（每 100 m <span class="num">${(r.trees / r.L * 100).toFixed(1)}</span>）</td></tr>` +
-    `<tr><th>🌿 經過公園</th><td><b class="num">${r.parkPct.toFixed(0)}%</b>${r.parkNames.length ? '<br><span class="note">' + r.parkNames.slice(0, 4).join('、') + (r.parkNames.length > 4 ? '…' : '') + '</span>' : ''}</td></tr>` +
-    `<tr><th>🚗 離幹道 50 m 內</th><td class="num">${r.nearPct.toFixed(0)}%</td></tr></table></div>` +
-    `<div class="card"><h3>同一條路線，哪個時段最好？</h3><div style="font-size:13px"><span class="best">★ ${SLOT_SHORT[best[0]]} ${best[1].toFixed(1)}</span>　<span class="worst">▼ ${SLOT_SHORT[worst[0]]} ${worst[1].toFixed(1)}</span>　差 <b class="num">${(worst[1] - best[1]).toFixed(1)}</b>${unit(S.pol)}（${pl}，${DAYS[S.daytype]}，${SEASON_FULL[S.season]}）</div>${svg}` +
-    `<div class="note">路線依 ${pl} 著色（同空品圖例）。每 50 m 一段、取段中點推估：9 個一般站 IDW ＋ 路邊加成（假設值）。都是推估，不是實測。</div></div>`;
-  window.__draw = { km: +(r.L / 1000).toFixed(3), now: r.now, bySlot: r.bySlot, best: best[0], worst: worst[0], trees: r.trees, parkPct: +r.parkPct.toFixed(1), nearPct: +r.nearPct.toFixed(1), segs: r.n, closed, ms: Math.round(performance.now() - t0) };
+  ROUTE = pts.length >= 2 ? drawModel(pts) : null; SHORT = null;
+  applyLayers(); render(); if (fit && ROUTE) fitRoute();
 }
-document.getElementById('drawStart').onclick = () => { setTab('draw'); R.pick = null; DR.active = true; map.doubleClickZoom.disable(); map.getCanvas().style.cursor = 'crosshair'; document.getElementById('drawStart').classList.add('on'); hint('畫線中：點擊加點，雙擊或按「結束」完成。'); };
-document.getElementById('drawEnd').onclick = () => { drawStop(); hint(DR.pts.length >= 2 ? '已完成。可以按「開始畫線」接著畫，或「復原上一點」。' : '至少需要 2 個點。'); drawUpdate(); };
-document.getElementById('drawUndo').onclick = () => { DR.pts.pop(); drawUpdate(); };
-document.getElementById('drawClear').onclick = () => { DR.pts = []; drawStop(); hint('已清除。按「開始畫線」重畫。'); drawUpdate(); };
-document.getElementById('pace').oninput = () => drawUpdate();
-document.getElementById('drawExport').onclick = () => {
-  if (DR.pts.length < 2) { hint('沒有路線可以匯出。'); return; }
-  const r = window.__draw;
-  const gj = { type:'FeatureCollection', features:[{ type:'Feature', properties:{ name:'我的跑步路線', length_km:r.km, exported:new Date().toISOString(),
-    scenario:{ season:S.season, daytype:S.daytype, slot:S.slot }, avg_AQI_est:+r.now.AQI.toFixed(1), avg_PM25_est:+r.now['PM2.5'].toFixed(1), avg_NO2_est:+r.now.NO2.toFixed(1),
+function drawStop() { DR.active = false; if (window.__ready) { map.doubleClickZoom.enable(); map.getCanvas().style.cursor = ''; } document.getElementById('drawStart').classList.remove('on'); }
+document.getElementById('drawStart').onclick = () => { R.pick = null; DR.active = true; map.doubleClickZoom.disable(); map.getCanvas().style.cursor = 'crosshair'; document.getElementById('drawStart').classList.add('on'); hint('畫線中：點擊加點，雙擊或按「完成」結束。'); };
+document.getElementById('drawEnd').onclick = () => { drawStop(); hint(DR.pts.length >= 2 ? '已完成。拖動下方時間軸，看路線在不同時間的變化。' : '至少需要 2 個點。'); drawChanged(true); };
+document.getElementById('drawUndo').onclick = () => { DR.pts.pop(); drawChanged(); };
+document.getElementById('drawClear').onclick = () => { DR.pts = []; drawStop(); hint('已清除。按「開始畫線」重畫。'); drawChanged(); };
+function exportGeoJSON() {
+  if (!ROUTE || ROUTE.kind !== 'draw') return;
+  const best = bestStart(ROUTE, 'AQI'), now = S.hour * 60;
+  const gj = { type:'FeatureCollection', features:[{ type:'Feature', properties:{ name:'我的跑步路線', length_km:+(ROUTE.L / 1000).toFixed(3), exported:new Date().toISOString(),
+    scenario:{ season:S.season, daytype:S.daytype, start:hhmm(now), pace_min_per_km:pace() }, avg_AQI_est:+runAvg(ROUTE, 'AQI', now).toFixed(1), best_start:hhmm(best.t), best_avg_AQI_est:+best.v.toFixed(1),
     note:'空品為推估值（9 個一般站 IDW＋路邊加成），非實測' }, geometry:{ type:'LineString', coordinates: DR.pts.map(p => [+p[0].toFixed(6), +p[1].toFixed(6)]) } }] };
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(gj, null, 1)], { type:'application/geo+json' }));
-  a.download = 'my_route.geojson'; document.body.appendChild(a); a.click(); a.remove(); hint('已匯出 my_route.geojson。'); };
+  a.download = 'my_route.geojson'; document.body.appendChild(a); a.click(); a.remove(); hint('已匯出 my_route.geojson。'); }
 function importGeoJSON(gj) {
   const feats = gj.type === 'FeatureCollection' ? gj.features : gj.type === 'Feature' ? [gj] : [{ geometry: gj }];
   const g = feats.map(f => f && f.geometry).find(g => g && (g.type === 'LineString' || g.type === 'MultiLineString'));
   if (!g) throw new Error('檔案裡沒有 LineString');
-  DR.pts = (g.type === 'LineString' ? g.coordinates : g.coordinates.flat()).map(p => [+p[0], +p[1]]); drawStop(); setTab('draw');
-  const xs = DR.pts.map(p => p[0]), ys = DR.pts.map(p => p[1]);
-  map.fitBounds([[Math.min(...xs), Math.min(...ys)], [Math.max(...xs), Math.max(...ys)]], { padding:padL(), maxZoom:16 });
-  hint(`已匯入 ${DR.pts.length} 個點。`); drawUpdate(); }
-document.getElementById('drawImport').onchange = e => { const f = e.target.files[0]; if (!f) return; f.text().then(t => { try { importGeoJSON(JSON.parse(t)); } catch (err) { hint('匯入失敗：' + err.message); } }); e.target.value = ''; };
+  DR.pts = (g.type === 'LineString' ? g.coordinates : g.coordinates.flat()).map(p => [+p[0], +p[1]]);
+  if (S.mode !== 'draw') { setMode('draw'); return; }
+  drawStop(); hint(`已匯入 ${DR.pts.length} 個點。`); drawChanged(true); }
 
-// ================= 階段二：自動規劃 A → B =================
-// 成本＝路段長度 ×（1 ＋ λ × 避開分數）÷（1 ＋ λ × 偏好分數）
-//   避開分數＝Σ 權重 × 懲罰（0–1）：
-//     大車道：1 − min(離 motorway/trunk/primary/secondary 距離 / 200 m, 1)
-//     商圈：min(1, 0.5×在商業區 ＋ 50 m 內商店數 / 8)
-//     空污：路段推估值（IDW＋路邊加成）在「起終點周圍範圍」內做 min–max 正規化
-//   偏好分數＝Σ 權重 × 好處（0–1）：人行道＝1；公園或河濱＝1；樹蔭＝min(每 100 m 樹數 / 全網第 90 百分位, 1)
-//   偏好用「打折」而不是「懲罰沒有的路段」：大多數路段沒有人行道標記、不在公園、樹少，若用懲罰會讓每段路都一樣貴、偏好失效。
-// λ 預設 1；建議路線長度超過「最短路線 × 上限倍數」時，用二分法調小 λ 直到符合上限。
-const PREFS = {
-  road:{ g:'avoid', ico:'🚗', l:'避開大車道', w:3 }, comm:{ g:'avoid', ico:'🛍️', l:'避開商圈', w:1 }, air:{ g:'avoid', ico:'💨', l:'避開空污', w:3 },
-  sw:{ g:'like', ico:'🚶', l:'偏好人行道', w:1 }, green:{ g:'like', ico:'🌿', l:'偏好公園與河濱', w:2 }, shade:{ g:'like', ico:'🌳', l:'偏好樹蔭', w:1 } };
-const LV = ['關', '很低', '低', '中', '高', '很高'];
-for (const [k, p] of Object.entries(PREFS)) {
-  document.getElementById(p.g === 'avoid' ? 'prefAvoid' : 'prefLike').insertAdjacentHTML('beforeend',
-    `<div class="pref"><span class="ico">${p.ico}</span><span>${p.l}</span><input type="range" min="0" max="5" step="1" value="${p.w}" data-k="${k}" aria-label="${p.l}"><span class="lv" id="lv_${k}">${LV[p.w]}</span></div>`);
-}
-document.querySelectorAll('.pref input').forEach(inp => inp.oninput = () => { PREFS[inp.dataset.k].w = +inp.value; document.getElementById('lv_' + inp.dataset.k).textContent = LV[+inp.value]; routeUpdate(); });
-document.getElementById('maxRatio').onchange = () => routeUpdate();
-const COV = window.OSM_COV;
-document.getElementById('covNote').innerHTML = COV ? `⚠ OSM 資料完整度：人行道標記只涵蓋車行道路長度的 <b>${COV.sidewalk_pct}%</b>（其餘不是沒有人行道，而是沒被標記）；臺北市內的商店點 ${COV.shops_in_taipei.toLocaleString()} 個，各區密度差異大（${COV.shop_note}）。「偏好人行道」「避開商圈」會低估沒被標記的地方。` : '';
-
-let NET = null, netLoading = null;
-function netStatus(t) { const el = document.getElementById('netStatus'); el.hidden = !t; el.innerHTML = t || ''; }
+// ===================================================================
+// 起點→終點規劃
+// 成本＝路段長度 ×（1 ＋ λ×避開分數）÷（1 ＋ λ×偏好分數）；空污用「時間軸目前的小時」，在起終點周圍正規化
+// ===================================================================
+let NET = null, netLoading = null, PLAN = null;
 function loadNet() {
   if (NET || netLoading) return netLoading;
-  netStatus('正在載入臺北市步行路網（約 9 MB）…');
+  hint('正在載入臺北市步行路網（約 9 MB）…');
   const t0 = performance.now();
   netLoading = new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'data/web/network.js'; s.onload = res; s.onerror = rej; document.head.appendChild(s); })
-    .then(() => { const t1 = performance.now(); NET = buildNet(); const t2 = performance.now();
-      NET.loadMs = Math.round(t1 - t0); NET.buildMs = Math.round(t2 - t1);
-      netStatus(''); document.getElementById('pickHint').textContent = `路網已載入：${NET.nN.toLocaleString()} 個節點、${NET.nE.toLocaleString()} 段路（下載 ${NET.loadMs} ms、建立索引 ${NET.buildMs} ms）。先按①再點地圖。`; routeUpdate(); })
-    .catch(() => netStatus('路網資料（data/web/network.js）載入失敗。'));
+    .then(() => { const t1 = performance.now(); NET = buildNet(); NET.loadMs = Math.round(t1 - t0); NET.buildMs = Math.round(performance.now() - t1);
+      if (S.mode === 'plan' && R.start === null) hint(`路網已載入（${NET.nN.toLocaleString()} 節點，${NET.loadMs + NET.buildMs} ms）。按「① 設起點」再點地圖。`); })
+    .catch(() => hint('路網資料載入失敗。'));
   return netLoading;
 }
 function buildNet() {
   const N = window.NET_NODES, E = window.NET_EDGES, GM = window.NET_GEOM, nN = N.length, nE = E.length;
-  const lon = new Float64Array(nN), lat = new Float64Array(nN);
-  N.forEach((p, i) => { lon[i] = p[0] / 1e5; lat[i] = p[1] / 1e5; });
-  const deg = new Int32Array(nN + 1);
-  E.forEach(e => { deg[e[0] + 1]++; deg[e[1] + 1]++; });
-  for (let i = 0; i < nN; i++) deg[i + 1] += deg[i];
+  const lon = new Float64Array(nN), lat = new Float64Array(nN); N.forEach((p, i) => { lon[i] = p[0] / 1e5; lat[i] = p[1] / 1e5; });
+  const deg = new Int32Array(nN + 1); E.forEach(e => { deg[e[0] + 1]++; deg[e[1] + 1]++; }); for (let i = 0; i < nN; i++) deg[i + 1] += deg[i];
   const adjN = new Int32Array(2 * nE), adjE = new Int32Array(2 * nE), fill = deg.slice(0, nN);
   E.forEach((e, k) => { adjN[fill[e[0]]] = e[1]; adjE[fill[e[0]]++] = k; adjN[fill[e[1]]] = e[0]; adjE[fill[e[1]]++] = k; });
   const m = ST.length, dist = new Float32Array(nE * m), per100 = new Float32Array(nE), len = new Float64Array(nE), mlon = new Float64Array(nE), mlat = new Float64Array(nE);
-  E.forEach((e, k) => {
-    const g = GM[k]; let mx, my;
+  E.forEach((e, k) => { const g = GM[k]; let mx, my;
     if (g.length >= 2) { const j = (g.length / 2) & ~1; mx = g[j] / 1e5; my = g[j + 1] / 1e5; } else { mx = (lon[e[0]] + lon[e[1]]) / 2; my = (lat[e[0]] + lat[e[1]]) / 2; }
-    mlon[k] = mx; mlat[k] = my;
-    const kx = kxAt(my); for (let j = 0; j < m; j++) dist[k * m + j] = Math.hypot((mx - ST[j].lon) * kx, (my - ST[j].lat) * KY);
-    per100[k] = e[3] / Math.max(e[2], 1) * 100; len[k] = e[2];
-  });
+    mlon[k] = mx; mlat[k] = my; const kx = kxAt(my); for (let j = 0; j < m; j++) dist[k * m + j] = Math.hypot((mx - ST[j].lon) * kx, (my - ST[j].lat) * KY);
+    per100[k] = e[3] / Math.max(e[2], 1) * 100; len[k] = e[2]; });
   const sorted = Array.from(per100).filter(v => v > 0).sort((a, b) => a - b);
   return { E, GM, nN, nE, lon, lat, mlon, mlat, deg, adjN, adjE, dist, per100, len, p90: sorted[Math.floor(sorted.length * 0.9)] || 1 };
 }
-function edgeAir(pol) {
-  const sv = stationVals(pol, S.season, S.daytype, S.slot).v, rs = RS.values[pol][S.season][S.daytype][S.slot].mean || 0, m = ST.length;
-  const out = new Float32Array(NET.nE);
-  for (let k = 0; k < NET.nE; k++) {
-    let num = 0, den = 0; for (let j = 0; j < m; j++) { if (!USE[j] || sv[j] === null) continue; const w = 1 / Math.max(NET.dist[k * m + j], 1) ** 2; num += w * sv[j]; den += w; }
-    const e = NET.E[k]; out[k] = (den ? num / den : 0) + rs * rsF(R.major === 'primary' ? e[5] : Math.min(e[5], e[6]));
-  }
-  return out;
-}
-// 空污懲罰只在「起終點周圍範圍」內做 min–max 正規化：全市尺度的背景差異（山區 vs 市中心）會蓋過路邊加成，
-// 讓每條路的分數都差不多，偏好就失效。範圍＝起終點外框向外延伸 max(1.5 km, 兩點距離的一半)。
-function corridor(a, b) {
-  const x0 = Math.min(NET.lon[a], NET.lon[b]), x1 = Math.max(NET.lon[a], NET.lon[b]), y0 = Math.min(NET.lat[a], NET.lat[b]), y1 = Math.max(NET.lat[a], NET.lat[b]);
-  const kx = kxAt((y0 + y1) / 2), d = Math.hypot((x1 - x0) * kx, (y1 - y0) * KY), pad = Math.max(1500, d / 2);
-  return [x0 - pad / kx, y0 - pad / KY, x1 + pad / kx, y1 + pad / KY];
-}
+function edgeAir(pol, h) { const sv = stV(pol, h), rs = rsH(pol, h), m = ST.length, out = new Float32Array(NET.nE);
+  for (let k = 0; k < NET.nE; k++) { let num = 0, den = 0; for (let j = 0; j < m; j++) { if (!USE[j] || sv[j] === null) continue; const w = 1 / Math.max(NET.dist[k * m + j], 1) ** 2; num += w * sv[j]; den += w; }
+    const e = NET.E[k]; out[k] = (den ? num / den : 0) + rs * rsF(dMajOf(e[5], e[6])); }
+  return out; }
+function corridor(a, b) { const x0 = Math.min(NET.lon[a], NET.lon[b]), x1 = Math.max(NET.lon[a], NET.lon[b]), y0 = Math.min(NET.lat[a], NET.lat[b]), y1 = Math.max(NET.lat[a], NET.lat[b]);
+  const kx = kxAt((y0 + y1) / 2), d = Math.hypot((x1 - x0) * kx, (y1 - y0) * KY), pd = Math.max(1500, d / 2); return [x0 - pd / kx, y0 - pd / KY, x1 + pd / kx, y1 + pd / KY]; }
 function penalties(airArr, box) {
   let mn = Infinity, mx = -Infinity;
   for (let k = 0; k < NET.nE; k++) { if (box && (NET.mlon[k] < box[0] || NET.mlon[k] > box[2] || NET.mlat[k] < box[1] || NET.mlat[k] > box[3])) continue; const v = airArr[k]; if (v < mn) mn = v; if (v > mx) mx = v; }
-  const w = Object.fromEntries(Object.entries(PREFS).map(([k, p]) => [k, p.w]));
-  const avoid = new Float64Array(NET.nE), like = new Float64Array(NET.nE);
-  for (let k = 0; k < NET.nE; k++) {
-    const e = NET.E[k];
-    avoid[k] = w.road * (1 - Math.min(Math.min(e[5], e[6]) / 200, 1))
-             + w.comm * Math.min(1, 0.5 * e[8] + e[9] / 8)
-             + w.air * (mx > mn ? Math.min(1, Math.max(0, (airArr[k] - mn) / (mx - mn))) : 0);
-    like[k] = w.sw * (e[7] ? 1 : 0) + w.green * ((e[4] >= 0 || e[10]) ? 1 : 0) + w.shade * Math.min(NET.per100[k] / NET.p90, 1);
-  }
-  return { avoid, like };
-}
+  const w = Object.fromEntries(Object.keys(PREFS).map(k => [k, effW(k)])), avoid = new Float64Array(NET.nE), like = new Float64Array(NET.nE);
+  for (let k = 0; k < NET.nE; k++) { const e = NET.E[k];
+    avoid[k] = w.road * (1 - Math.min(Math.min(e[5], e[6]) / 200, 1)) + w.comm * Math.min(1, 0.5 * e[8] + e[9] / 8) + w.air * (mx > mn ? Math.min(1, Math.max(0, (airArr[k] - mn) / (mx - mn))) : 0);
+    like[k] = w.sw * (e[7] ? 1 : 0) + w.green * ((e[4] >= 0 || e[10]) ? 1 : 0) + w.shade * Math.min(NET.per100[k] / NET.p90, 1); }
+  return { avoid, like }; }
 function costWith(pen, lam) { const c = new Float64Array(NET.nE); for (let k = 0; k < NET.nE; k++) c[k] = NET.len[k] * (1 + lam * pen.avoid[k]) / (1 + lam * pen.like[k]); return c; }
 function dijkstra(src, dst, cost) {
   const n = NET.nN, Dd = new Float64Array(n).fill(Infinity), prevE = new Int32Array(n).fill(-1), done = new Uint8Array(n), hN = [], hD = [];
@@ -648,88 +732,71 @@ function dijkstra(src, dst, cost) {
   if (!isFinite(Dd[dst])) return null;
   const edges = [], nodes = [dst]; let v = dst;
   while (v !== src) { const k = prevE[v]; edges.push(k); const e = NET.E[k]; v = e[0] === v ? e[1] : e[0]; nodes.push(v); }
-  edges.reverse(); nodes.reverse();
-  let L = 0; for (const k of edges) L += NET.len[k];
+  edges.reverse(); nodes.reverse(); let L = 0; for (const k of edges) L += NET.len[k];
   return { edges, nodes, L };
 }
-function pathCoords(p) {
-  const out = [[NET.lon[p.nodes[0]], NET.lat[p.nodes[0]]]];
-  p.edges.forEach((k, i) => { const a = p.nodes[i], b = p.nodes[i + 1], g = NET.GM[k], mid = [];
-    for (let j = 0; j < g.length; j += 2) mid.push([g[j] / 1e5, g[j + 1] / 1e5]);
-    if (NET.E[k][0] !== a) mid.reverse();
-    out.push(...mid, [NET.lon[b], NET.lat[b]]); });
-  return out;
-}
-function nearestNode(ll) {
-  let best = -1, bd = Infinity; const kx = Math.cos(ll.lat * Math.PI / 180);
+function edgeCoords(k, from) { const e = NET.E[k], g = NET.GM[k], mid = []; for (let j = 0; j < g.length; j += 2) mid.push([g[j] / 1e5, g[j + 1] / 1e5]);
+  const cs = [[NET.lon[e[0]], NET.lat[e[0]]], ...mid, [NET.lon[e[1]], NET.lat[e[1]]]]; return e[0] === from ? cs : cs.reverse(); }
+function pathModel(p, kind) { const m = ST.length;
+  const segs = p.edges.map((k, i) => { const e = NET.E[k]; return { c: edgeCoords(k, p.nodes[i]), L: NET.len[k], dSt: Array.from(NET.dist.subarray(k * m, k * m + m)), d1:e[5], d2:e[6],
+    park: e[4] >= 0, pname: e[4] >= 0 ? window.NET_PARKS[e[4]] : null, sw: e[7], comm: (e[8] || e[9] >= 3) ? 1 : 0, river: e[10], trees: e[3] }; });
+  return makeModel(kind, segs); }
+function nearestNode(ll) { let best = -1, bd = Infinity; const kx = Math.cos(ll.lat * Math.PI / 180);
   for (let i = 0; i < NET.nN; i++) { const dx = (NET.lon[i] - ll.lng) * kx, dy = NET.lat[i] - ll.lat, d = dx * dx + dy * dy; if (d < bd) { bd = d; best = i; } }
-  return { i: best, m: Math.sqrt(bd) * 111000 };
-}
-function routeStats(p, air) {
-  let L = 0, aqi = 0, pm = 0, no2 = 0, sw = 0, river = 0, comm = 0, near = 0, near1 = 0, trees = 0, shopsN = 0; const parks = new Set();
-  for (const k of p.edges) { const e = NET.E[k], l = NET.len[k];
-    L += l; aqi += air.AQI[k] * l; pm += air['PM2.5'][k] * l; no2 += air.NO2[k] * l; trees += e[3];
-    if (e[7]) sw += l; if (e[10]) river += l; if (e[8] || e[9] >= 3) comm += l; if (Math.min(e[5], e[6]) <= 50) near += l; if (e[5] <= 50) near1 += l; if (e[4] >= 0) parks.add(e[4]); shopsN += e[9]; }
-  return { km: L / 1000, aqi: aqi / L, pm: pm / L, no2: no2 / L, swPct: sw / L * 100, riverPct: river / L * 100, commPct: comm / L * 100, nearPct: near / L * 100, near1Pct: near1 / L * 100,
-    per100: trees / L * 100, shade: Math.min(trees / L * 100 / NET.p90, 1) * 100, parks: [...parks].map(i => window.NET_PARKS[i]) };
-}
-function setPoint(kind, ll) {
-  if (!NET) { netStatus('路網還在載入，請稍等。'); return; }
-  const n = nearestNode(ll); R[kind] = n.i; R.pick = null; map.getCanvas().style.cursor = '';
-  document.querySelectorAll('#pickStart,#pickEnd').forEach(b => b.classList.remove('on'));
-  document.getElementById('pickHint').textContent = n.m > 150 ? `⚠ 點的位置離最近可跑的路 ${Math.round(n.m)} m，已吸附到最近的路。` : (kind === 'start' && R.end === null ? '起點已設定，請按②設終點。' : '已吸附到最近的路網節點。');
-  routeUpdate();
-}
-function summaryText(s) {
-  const parts = [`${s.swPct.toFixed(0)}% 走人行道`, s.parks.length ? `經過 ${s.parks.length} 個公園` : '沒有經過公園',
-    s.riverPct >= 1 ? `${s.riverPct.toFixed(0)}% 在河濱` : null, s.commPct < 0.5 ? '完全避開商圈' : `${s.commPct.toFixed(0)}% 經過商圈`,
-    s.nearPct < 0.5 ? '完全避開大車道' : `${s.nearPct.toFixed(0)}% 靠近大車道（50 m 內）`];
-  return parts.filter(Boolean).join('、');
-}
-function routeUpdate() {
-  if (!NET || !window.__ready || !map.getSource('pts')) return;
-  const pts = [];
+  return { i: best, m: Math.sqrt(bd) * 111000 }; }
+function showPts() { if (!window.__ready || !NET) return; const pts = [];
   if (R.start !== null) pts.push({ type:'Feature', properties:{ k:'start' }, geometry:{ type:'Point', coordinates:[NET.lon[R.start], NET.lat[R.start]] } });
   if (R.end !== null) pts.push({ type:'Feature', properties:{ k:'end' }, geometry:{ type:'Point', coordinates:[NET.lon[R.end], NET.lat[R.end]] } });
-  map.getSource('pts').setData({ type:'FeatureCollection', features:pts });
-  const out = document.getElementById('routeOut');
-  if (R.start === null || R.end === null) { map.getSource('route').setData({ type:'FeatureCollection', features:[] }); out.innerHTML = ''; window.__route = null; return; }
-  const t0 = performance.now();
-  const air = { AQI: edgeAir('AQI'), 'PM2.5': edgeAir('PM2.5'), NO2: edgeAir('NO2') };
-  const airSel = S.pol in air ? air[S.pol] : edgeAir(S.pol);
-  const short = dijkstra(R.start, R.end, NET.len);
-  if (!short) { out.innerHTML = '<div class="warn">兩點之間的路網不連通，請換一個點。</div>'; return; }
-  const pen = penalties(airSel, corridor(R.start, R.end)), ratio = Math.max(1, +document.getElementById('maxRatio').value || 1.3);
-  const withL = lam => dijkstra(R.start, R.end, costWith(pen, lam));
-  let lam = 1, best = withL(1), runs = 2;
-  if (best.L > ratio * short.L) {   // 超過長度上限：二分法調小偏好強度 λ
-    let lo = 0, hi = 1, ok = short; lam = 0;
-    for (let it = 0; it < 9; it++) { const mid = (lo + hi) / 2, p = withL(mid); runs++; if (p.L <= ratio * short.L) { ok = p; lam = mid; lo = mid; } else hi = mid; }
-    best = ok;
-  }
-  map.getSource('route').setData({ type:'FeatureCollection', features:[
-    { type:'Feature', properties:{ kind:'short' }, geometry:{ type:'LineString', coordinates:pathCoords(short) } },
-    { type:'Feature', properties:{ kind:'best' }, geometry:{ type:'LineString', coordinates:pathCoords(best) } }] });
-  const a = routeStats(best, air), b = routeStats(short, air), same = best.edges.join() === short.edges.join();
-  window.__route = { best:a, short:b, lam, runs, ms: Math.round(performance.now() - t0), same, ratio: a.km / b.km };
-  const row = (lab, fa, fb, better) => { const va = fa(a), vb = fa(b); return `<tr><th>${lab}</th><td class="num" style="color:${C.coral}">${va}</td><td class="num" style="color:${C.grey}">${vb}</td></tr>`; };
-  out.innerHTML = `<div class="card"><h3>路線比較 <span class="tag">${SEASON_FULL[S.season]}・${DAYS[S.daytype]}・${SLOT_FULL[S.slot]}</span></h3>` +
-    `<div class="summary"><b style="color:${C.coral}">建議路線</b>：${summaryText(a)}。<br><b style="color:${C.grey}">最短路線</b>：${summaryText(b)}。</div>` +
-    `<table class="t"><tr><th></th><th style="color:${C.coral}">━ 建議</th><th style="color:${C.grey}">┅ 最短</th></tr>` +
-    row('距離 km', s => s.km.toFixed(2)) + row('預估時間（6 分/km）', s => hms(s.km * 6)) +
-    row('平均 AQI（推估）', s => s.aqi.toFixed(1)) + row('平均 PM2.5', s => s.pm.toFixed(1)) + row('平均 NO₂ ppb', s => s.no2.toFixed(1)) +
-    row('🚗 大車道 50 m 內', s => s.nearPct.toFixed(0) + '%') + row('　其中快速／主要道路', s => s.near1Pct.toFixed(0) + '%') + row('🛍️ 商圈路段', s => s.commPct.toFixed(0) + '%') +
-    row('🚶 人行道', s => s.swPct.toFixed(0) + '%') + row('🌿 經過公園', s => s.parks.length + ' 個') + row('🌊 河濱', s => s.riverPct.toFixed(0) + '%') +
-    row('🌳 樹蔭分數（0–100）', s => s.shade.toFixed(0)) + row('🌳 每 100 m 樹數', s => s.per100.toFixed(1)) + '</table>' +
-    (a.parks.length ? `<div class="note">建議路線經過：${a.parks.slice(0, 6).join('、')}${a.parks.length > 6 ? '…' : ''}</div>` : '') +
-    `<div class="note">建議路線長度是最短路線的 <b class="num">${(a.km / b.km).toFixed(2)}</b> 倍（上限 ${ratio} 倍）${lam < 1 ? `；為了不超過上限，偏好強度自動調降為 ${(lam * 100).toFixed(0)}%` : ''}。${same ? '<b>兩條路線相同</b>：在這組偏好下最短路線已是最佳。' : ''}計算 ${window.__route.ms} ms。</div>` +
-    `<div class="note">空品為推估（IDW＋路邊加成），樹蔭以 20 m 內行道樹與公園樹數量代理。人行道與商店依 OSM 標記，標記不完整（見上方說明）。快速道路（motorway、trunk）與高架橋（bridge=viaduct）已從路網排除。</div></div>`;
+  map.getSource('pts').setData({ type:'FeatureCollection', features:pts }); }
+function setPoint(kind, ll) {
+  if (!NET) { hint('路網還在載入，請稍等再點一次。'); return; }
+  const n = nearestNode(ll); R[kind] = n.i; R.pick = null; map.getCanvas().style.cursor = '';
+  document.querySelectorAll('#pickStart,#pickEnd').forEach(b => b.classList.remove('on')); showPts();
+  if (R.start !== null && R.end !== null) planRoute();
+  else hint((n.m > 150 ? `⚠ 點的位置離最近可跑的路 ${Math.round(n.m)} m，已吸附。` : '') + (kind === 'start' ? '起點已設定，請按「② 設終點」再點地圖。' : '終點已設定，請按「① 設起點」。'));
 }
-document.getElementById('pickStart').onclick = () => { loadNet(); DR.active = false; R.pick = 'start'; map.getCanvas().style.cursor = 'crosshair'; document.getElementById('pickStart').classList.add('on'); document.getElementById('pickHint').textContent = '請在地圖上點起點。'; };
-document.getElementById('pickEnd').onclick = () => { loadNet(); DR.active = false; R.pick = 'end'; map.getCanvas().style.cursor = 'crosshair'; document.getElementById('pickEnd').classList.add('on'); document.getElementById('pickHint').textContent = '請在地圖上點終點。'; };
-document.getElementById('clearRoute').onclick = () => { R.start = R.end = null; R.pick = null; routeUpdate(); };
+function planRoute() {
+  if (!window.__ready) { map.once('load', () => setTimeout(planRoute, 0)); return; }   // 路網比底圖先載完時，等地圖好了再畫
+  const t0 = performance.now(), h = S.hour, air = edgeAir(S.pol, h), short = dijkstra(R.start, R.end, NET.len);
+  if (!short) { hint('兩點之間的路網不連通，請換一個點。'); return; }
+  const pen = penalties(air, corridor(R.start, R.end)), ratio = Math.max(1, R.maxRatio), withL = lam => dijkstra(R.start, R.end, costWith(pen, lam));
+  let lam = 1, best = withL(1), runs = 2;
+  if (best.L > ratio * short.L) { let lo = 0, hi = 1, ok = short; lam = 0; for (let it = 0; it < 9; it++) { const mid = (lo + hi) / 2, p = withL(mid); runs++; if (p.L <= ratio * short.L) { ok = p; lam = mid; lo = mid; } else hi = mid; } best = ok; }
+  ROUTE = pathModel(best, 'plan'); ROUTE.lam = lam; SHORT = pathModel(short, 'short');
+  PLAN = { key: planKey(), hour:h, ms: Math.round(performance.now() - t0), runs };
+  map.getSource('short').setData({ type:'FeatureCollection', features:[{ type:'Feature', properties:{}, geometry:{ type:'LineString', coordinates: SHORT.segs.flatMap(s => s.c) } }] });
+  document.getElementById('replan').hidden = true;
+  hint(`已用 ${pad2(h)}:00 的空品規劃（${PLAN.ms} ms）。彩色＝建議路線，灰色虛線＝最短路線。拖動時間軸可看各時間的顏色。`);
+  window.__route = { best: stats(ROUTE, h * 60), short: stats(SHORT, h * 60), lam, ms: PLAN.ms, hour:h };
+  applyLayers(); render(); fitRoute();
+}
+const planKey = () => [S.hour, S.pol, S.season, S.daytype, R.rsOn, R.major, R.rsFull, R.rsZero, R.maxRatio, Object.keys(PREFS).map(effW).join(',')].join('|');
+function markStale(why) {   // 規劃後若時間或條件改變：只顯示按鈕，不自動重算（避免拖動時卡頓）
+  if (S.mode !== 'plan' || !PLAN) return;
+  const b = document.getElementById('replan'), stale = planKey() !== PLAN.key;
+  b.hidden = !stale; if (stale) b.textContent = `用 ${pad2(S.hour)}:00 重新規劃` + (why ? `（${why}）` : '');
+}
+document.getElementById('replan').onclick = () => { if (NET && R.start !== null && R.end !== null) planRoute(); };
+document.getElementById('pickStart').onclick = () => { loadNet(); DR.active = false; R.pick = 'start'; map.getCanvas().style.cursor = 'crosshair'; document.getElementById('pickStart').classList.add('on'); hint('請在地圖上點起點。'); };
+document.getElementById('pickEnd').onclick = () => { loadNet(); DR.active = false; R.pick = 'end'; map.getCanvas().style.cursor = 'crosshair'; document.getElementById('pickEnd').classList.add('on'); hint('請在地圖上點終點。'); };
+document.getElementById('clearRoute').onclick = () => { R.start = R.end = null; R.pick = null; ROUTE = SHORT = PLAN = null; document.getElementById('replan').hidden = true; clearMapRoute(); applyLayers(); render(); hint('已清除。'); };
 
-render();
+// ===================================================================
+// 彈出視窗
+// ===================================================================
+function stationPopup(i, ll) {
+  const s = ST[i], v = stV(S.pol, S.hour)[i], n = stN(S.pol, S.hour)[i], ti = RSH.traffic.indexOf(s.name);
+  const rs = ti >= 0 ? RSH.values[S.pol][S.season][S.daytype].per[S.hour][ti] : null;
+  new maplibregl.Popup({ maxWidth:'320px' }).setLngLat(ll).setHTML(`<b>${s.name}</b>（${s.type}）<br><span class="note">${s.addr}</span><br>${pad2(S.hour)}:00 ${POLS[S.pol].label} <b class="num" style="font-size:16px">${fmt(v)}</b>${unit(S.pol)}　<span class="note">實測平均，${n} 筆</span>` +
+    (ti >= 0 ? `<br>路邊加成（本站 − ${RSH.neighbors[s.name].join('、')}）：<b class="num">${rs === null ? '缺值' : (rs >= 0 ? '+' : '') + rs.toFixed(1)}</b>${unit(S.pol)}` : '')).addTo(map);
+}
+function distPopup(i, ll) { const f = D.features[i].properties, v = window.__cur.district[i];
+  new maplibregl.Popup().setLngLat(ll).setHTML(`<b>${f.name}</b><br>${pad2(S.hour)}:00 ${POLS[S.pol].label} <b class="num" style="font-size:16px">${fmt(v)}</b>${unit(S.pol)}<br><span class="note">IDW 推估（區內網格平均）。${f.has_station ? '區內測站：' + f.stations : '區內沒有測站'}</span>`).addTo(map); }
+function gridPopup(p, ll) { const v = gridAt(S.pol, S.hour)[p.i];
+  new maplibregl.Popup().setLngLat(ll).setHTML(`500 m 網格（${NAMES[p.d]}）<br>${pad2(S.hour)}:00 ${POLS[S.pol].label} <b class="num" style="font-size:16px">${fmt(v)}</b>${unit(S.pol)}<br><span class="note">IDW 推估；最近一般站 ${p.near_st}，${(p.near_m / 1000).toFixed(1)} km${p.far ? '（遠離測站）' : ''}</span>`).addTo(map); }
+
+// ===================================================================
+renderPrefToggles(); renderAdv(); renderAbout(); setMode('draw');
 </script>
 </body>
 </html>
